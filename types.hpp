@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include <stdint.h>
+#include <readline/readline.h>
 
 enum type
 {
@@ -149,13 +150,11 @@ struct conveyor
     uint32_t  number;
     chain*    command;
     conv_type conv;
-    std::shared_ptr<conveyor> prev_link;
-    std::shared_ptr<conveyor> next_link;
+    std::unique_ptr<conveyor> prev_link;
+    conveyor* next_link;
     ~conveyor()
     {
-        std::cout<<"destructor "<<number<<" "<<command->object.obj_name<<std::endl;
-        if(next_link.get())
-            next_link.reset();
+        //std::cout<<"destructor "<<number<<" "<<command->object.obj_name<<std::endl;
     }
 };
 

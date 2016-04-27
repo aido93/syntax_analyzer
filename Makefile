@@ -3,7 +3,7 @@ CXX=g++
 BUILDDIR=build
 
 all: syntax.o lex.o
-	$(CXX) -O2 -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o -lfl -o test
+	$(CXX) -O2 -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o -lfl -lreadline -o test
 
 lex.o: $(BUILDDIR)/lex.yy.c
 	$(CC) $(BUILDDIR)/lex.yy.c -c -o $(BUILDDIR)/lex.o
