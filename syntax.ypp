@@ -1,0 +1,421 @@
+%{
+//bison -d -t syntax.y && flex lexer.l && gcc lex.yy.c syntax.tab.c -o test
+#include <iostream>
+#include <string>
+#include "types.hpp"
+
+extern "C" int yylex();
+extern "C" int yyparse (void);
+
+void yyerror(const char *str)
+{
+        std::cerr<<"error: "<<str<<"\n";
+}
+ 
+int yywrap()
+{
+        return 1;
+} 
+  
+int main()
+{
+	std::cout<<"> ";
+    yyparse();
+    return 0;
+} 
+
+template <type T> inline arg_list* last_element()
+{
+arg_list* a=new arg_list;
+a->type_val=T;
+a->next_arg=nullptr;
+a->prev_arg=nullptr;
+a->number=0;
+return a;
+}
+
+template <type T> inline arg_list* prev_element(arg_list* next_arg)
+{
+arg_list* a=new arg_list;
+a->type_val=T;
+a->prev_arg=nullptr;
+a->next_arg=std::shared_ptr<arg_list>(next_arg);
+a->number=a->next_arg->number+1;
+return a;
+}
+
+void print_function(func* f);
+
+void print_object(chain* obj)
+{
+    if(obj)
+    {
+        if(!obj->is_object)//function
+        {
+            print_function(obj->object.f);
+        }
+        else
+        {
+			std::cout<<obj->object.obj_name;
+        }
+        if(obj->next_link)
+        {
+            std::cout<<".";
+            print_object(obj->next_link.get());
+        }
+    };
+}
+
+void print_function(func* f)
+{
+    arg_list* b=f->args;
+    std::cout<<f->name<<"(";
+    while(b)
+    {
+        switch(b->type_val)
+        {
+            case NUM_T:
+                std::cout<<b->val.num;
+            break;
+                                        
+            case WORD_T:
+                std::cout<<b->val.str;
+            break;
+                                        
+            case OBJECT:
+                print_object(b->val.obj);
+            break;
+                                        
+            case FUNCTION:
+                print_function(b->val.f);
+            break;
+        }
+        if(b->next_arg.get())
+        {
+			std::cout<<", ";
+		}
+        b=b->next_arg.get();
+    };
+    std::cout<<")";
+}
+
+void print_conveyor(conveyor* c)
+{
+	if(c)
+    {
+		print_object(c->command);
+        if(c->next_link.get())
+        {
+			switch (c->conv)
+			{
+				case AND_CONV:
+					std::cout<<" && ";
+				break;
+				case OR_CONV:
+					std::cout<<" || ";
+				break;
+				case SEMICOLON_CONV:
+					std::cout<<"; ";
+				break;
+				default:
+				break;
+			}
+			print_conveyor(c->next_link.get());
+		}
+    }
+}
+
+bool need_continue=false;
+//возвращает указатель на ПОСЛЕДНИЙ элемент в конвейере
+inline conveyor* create_command_chain(conveyor* a, conveyor* b)
+{
+    a->next_link=std::shared_ptr<conveyor>(b);
+    b->number=a->number+1;
+    b->next_link=nullptr;
+    b->prev_link=std::shared_ptr<conveyor>(a);
+    return b;
+}
+
+//#include "embedded_functions.hpp"
+
+
+%}
+
+%union {
+double  num;
+char    *str;
+struct arg_list *seq;
+struct func     *func_val;//func args tree
+struct chain    *chain_list;//object tree
+struct conveyor *convey;//command tree
+}
+
+%token <num> NUM
+%token <str> WORD
+%type  <seq> func_args;
+%type  <func_val>   function;
+%type  <chain_list>   gen_command;
+%type  <convey>       command;
+%type  <convey>       finished_conveyor;
+%type  <convey>       unfinished_conveyor;
+%type  <convey>   	  full_conveyor;
+%type  <convey>   	  full_command;
+%type  <chain_list>   comm;
+%type  <chain_list>   object_chains;
+%token DOT PLUS MINUS MULT DIV AND OR CONVEY ANYTHING FILENAME
+
+%%
+
+
+full_command: full_conveyor '\n'
+			{
+				conveyor* tmp=$1;
+				conveyor*ret=nullptr;
+				if(tmp)
+				{
+					if(tmp->conv!=AND_CONV && tmp->conv!=OR_CONV)
+					{
+						 //print full conveyor
+						 while(tmp->prev_link.get())
+						 {
+							 tmp=tmp->prev_link.get();
+						 }
+						 print_conveyor(tmp);
+						 std::cout<<"\n> ";
+						 ret=nullptr;
+					}
+					else
+					{
+						std::cout<<"| ";
+						ret=tmp;
+					}
+				}
+				else
+				{
+					std::cout<<"> ";
+				}
+				$$=ret;
+			}
+			| full_command full_conveyor '\n'
+			{
+				conveyor* tmp=$2;
+				conveyor*ret=nullptr;
+				if(tmp)
+				{
+					if($1)
+					{
+						if($1->conv==AND_CONV || $1->conv==OR_CONV)
+						{//first conveyor isn't finished. concatenate both
+							tmp->number+=($1->number+1);
+							while(tmp->prev_link.get())
+							{
+								tmp=tmp->prev_link.get();
+								tmp->number+=($1->number+1);
+							}
+							tmp->prev_link=std::shared_ptr<conveyor>($1);
+							$1->next_link=std::shared_ptr<conveyor>(tmp);
+							ret=$2;
+						}
+					}
+					if($2->conv==AND_CONV || $2->conv==OR_CONV)
+					{//если вторая команда была незаконченным конвейером, просим пользователя его завершить
+						std::cout<<"| ";
+						ret=$2;
+					}
+					else
+					{
+						//print full conveyor
+						while(tmp->prev_link.get())
+						{
+							tmp=tmp->prev_link.get();
+						}
+						print_conveyor(tmp);
+						std::cout<<"\n> ";
+						//delete tmp;
+						ret=nullptr;
+					}
+				}
+				else
+				{//команды не было
+					if($1 && ($1->conv==AND_CONV || $1->conv==OR_CONV))
+					{//если первая команда была незаконченным конвейером, просим пользователя его завершить
+						std::cout<<"| ";
+						ret=$1;
+					}
+					else
+					{//иначе просто просим ввести команду
+						std::cout<<"> ";
+						ret=nullptr;
+					}
+				}
+				$$=ret;
+			}
+			;
+			
+full_conveyor: /*empty*/
+			 {
+				 $$=nullptr;
+			 }
+			 | unfinished_conveyor
+			 | finished_conveyor
+			 ;
+			 
+//no empty commands		 
+finished_conveyor: finished_conveyor AND command
+				 {
+					 $1->conv=AND_CONV;
+					 $$=create_command_chain($1, $3);
+				 }
+				 | finished_conveyor OR command
+				 {
+					 $1->conv=OR_CONV;
+					 $$=create_command_chain($1, $3);
+				 }
+				 | command
+				 ;
+
+//can have empties
+unfinished_conveyor: finished_conveyor AND /*empty*/
+				 {
+					 $1->conv=AND_CONV;
+					 $1->next_link=nullptr;
+					 $$=$1;
+				 }
+				 | finished_conveyor OR /*empty*/
+				 {
+					 $1->conv=OR_CONV;
+					 $1->next_link=nullptr;
+					 $$=$1;
+				 }
+				 ;
+	
+command: comm
+		{
+			conveyor* ret=new conveyor;
+			ret->number=0;
+			ret->command=$1;
+			ret->conv=NO_CONV;
+			ret->prev_link=nullptr;
+			ret->next_link=nullptr;
+			$$=ret;
+		}
+		| comm ';'
+		{
+			conveyor* ret=new conveyor;
+			ret->number=0;
+			ret->command=$1;
+			ret->conv=SEMICOLON_CONV;
+			ret->prev_link=nullptr;
+			ret->next_link=nullptr;
+			$$=ret;
+		}
+		;
+
+comm: gen_command
+    | object_chains
+    ;
+    
+object_chains: gen_command DOT comm
+			{
+				$1->number=$3->number+1;
+				$1->prev_link=nullptr;
+				$1->next_link=std::shared_ptr<chain>($3);
+				$3->prev_link=std::shared_ptr<chain>($1);
+				$$=$1;
+			}
+			;
+
+gen_command : WORD 
+            {
+                chain *com=new chain;
+                com->number=0;
+                com->is_object=true;
+                com->prev_link=nullptr;
+                com->next_link=nullptr;
+                com->object.obj_name=$1;
+                $$=com;
+            }
+			| function
+            {
+                chain *com=new chain;
+                com->number=0;
+                com->is_object=false;
+                com->prev_link=nullptr;
+                com->next_link=nullptr;
+                com->object.f=$1;
+                $$=com;
+            }
+            ;
+
+function: WORD '(' func_args 
+        {
+            func *f=new func;
+            f->name=$1;
+            f->args=$3;
+            $$=f;
+        }
+		| WORD '(' ')'  
+        {
+            func *f=new func;
+            f->name=$1;
+            f->args=nullptr;
+            $$=f;
+        }
+		;
+		
+func_args :
+			NUM ',' func_args 
+            {  
+                arg_list *curr_args=prev_element<NUM_T>($3);
+                curr_args->val.num=$1;
+                $$=curr_args;
+            }
+                                 
+          | WORD   ',' func_args 
+            {  
+                arg_list *curr_args=prev_element<WORD_T>($3);
+                curr_args->val.str=$1;
+                $$=curr_args;
+            }
+                                                      
+          | NUM ')'
+            {  
+                arg_list *curr_args=last_element<NUM_T>();
+                curr_args->val.num=$1;
+                $$=curr_args;
+            }
+                                 
+          | WORD   ')'
+            {  
+                arg_list *curr_args=last_element<WORD_T>();
+                curr_args->val.str=$1;
+                $$=curr_args;
+            }
+                                 
+          | function ',' func_args 
+            {  
+                arg_list *curr_args=prev_element<FUNCTION>($3);
+                curr_args->val.f=$1;
+                $$=curr_args;
+            }
+                                 
+          | function ')'
+            {  
+                arg_list *curr_args=last_element<FUNCTION>();
+                curr_args->val.f=$1;
+                $$=curr_args;
+            }
+          | object_chains ',' func_args
+            {
+				arg_list *curr_args=prev_element<OBJECT>($3);
+                curr_args->val.obj=$1;
+                $$=curr_args;
+			}
+		  | object_chains ')'
+            { 
+                arg_list *curr_args=last_element<OBJECT>();
+                curr_args->val.obj=$1;
+                $$=curr_args;
+            }
+		    ;
+%%
