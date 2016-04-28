@@ -3,125 +3,24 @@
 #include <iostream>
 #include <string>
 #include "types.hpp"
+//#include <readline/readline.h>
 #if defined (HAVE_LOCALE_H)
 #  include <locale.h>
 #endif
 
-extern "C" int yylex();
+/*
+ * #define YY_DECL int my_readline_func()
+ * int yylex()
+ * {
+ * 		char* input=readline("> ");
+ * 		return my_readline_func();
+ * }
+ * */
+
+extern int yylex();
 extern "C" int yyparse (void);
 
-
-/* **************************************************************** */
-/*								    */
-/*		  Let input be read from readline ().		    */
-/*								    */
-/* **************************************************************** */
-//#define READLINE
-#if defined (READLINE)
-
-typedef union {
-  FILE *file;
-  char *string;
-#if defined (BUFFERED_INPUT)
-  int buffered_fd;
-#endif
-} INPUT_STREAM;
-
-typedef int sh_cget_func_t __P((void));		/* sh_ivoidfunc_t */
-typedef int sh_cunget_func_t __P((int));	/* sh_intfunc_t */
-
-enum stream_type {st_none, st_stdin, st_stream, st_string, st_bstream};
-
-typedef struct {
-  enum stream_type type;
-  char *name;
-  INPUT_STREAM location;
-  sh_cget_func_t *getter;
-  sh_cunget_func_t *ungetter;
-} BASH_INPUT;
-extern BASH_INPUT bash_input;
-//thanx to bash=)
-extern int bash_readline_initialized;
-extern void initialize_readline(void);
-extern int stream_on_stack(enum stream_type);
-extern void init_yy_io(sh_cget_func_t *, sh_cunget_func_t *, enum stream_type, const char *, INPUT_STREAM);
-
-char *current_readline_prompt = (char *)NULL;
-char *current_readline_line = (char *)NULL;
-int current_readline_line_index = 0;
-
-#if defined (READLINE)
-static int yy_readline_get __P((void));
-static int yy_readline_unget __P((int));
-#endif
-
-static int
-yy_readline_get ()
-{
-  int line_len;
-  unsigned char c;
-
-  if (!current_readline_line)
-    {
-      if (!bash_readline_initialized)
-	initialize_readline ();
-
-      current_readline_line = readline (current_readline_prompt ?
-      					  current_readline_prompt : "");
-
-
-#if 0
-      /* Reset the prompt to the decoded value of prompt_string_pointer. */
-      reset_readline_prompt ();
-#endif
-
-      if (current_readline_line == 0)
-	return (EOF);
-
-      current_readline_line_index = 0;
-      line_len = strlen (current_readline_line);
-
-      current_readline_line = (char *)realloc (current_readline_line, 2 + line_len);
-      current_readline_line[line_len++] = '\n';
-      current_readline_line[line_len] = '\0';
-    }
-
-  if (current_readline_line[current_readline_line_index] == 0)
-    {
-      free (current_readline_line);
-      current_readline_line = (char *)NULL;
-      return (yy_readline_get ());
-    }
-  else
-    {
-      c = current_readline_line[current_readline_line_index++];
-      return (c);
-    }
-}
-
-static int
-yy_readline_unget (int c)
-{
-  if (current_readline_line_index && current_readline_line)
-    current_readline_line[--current_readline_line_index] = c;
-  return (c);
-}
-
-void
-with_input_from_stdin ()
-{
-  INPUT_STREAM location;
-
-  if (bash_input.type != st_stdin && stream_on_stack (st_stdin) == 0)
-    {
-      location.string = current_readline_line;
-      init_yy_io (yy_readline_get, yy_readline_unget,
-		  st_stdin, "readline stdin", location);
-    }
-}
-
-#endif
-
+std::string begin_line="> ";
 void yyerror(const char *str)
 {
         std::cerr<<"error: "<<str<<"\n";
@@ -131,10 +30,10 @@ int yywrap()
 {
         return 1;
 } 
-  
+
 int main()
 {
-	std::cout<<"> ";
+    //initialize_readline ();
     yyparse();
     return 0;
 } 
@@ -241,8 +140,8 @@ void print_conveyor(std::vector<conveyor>* c)
 %}
 
 %union {
-double  num;
-char    *str;
+double  				num;
+char    				*str;
 struct func             *func_val;//func args tree
 std::vector<arg>        *seq;
 std::vector<object>     *obj_list;//object tree
@@ -271,18 +170,18 @@ full_command: full_conveyor '\n'
 						 //print full conveyor
 						 print_conveyor($1);
 						 delete $1;
-						 std::cout<<"\n> ";
+						 begin_line="\n> ";
 						 $$=nullptr;
 					}
 					else
 					{
-						std::cout<<"| ";
+						begin_line="| ";
 						$$=$1;
 					}
 				}
 				else
 				{
-					std::cout<<"> ";
+					begin_line="> ";
                     $$=$1;
 				}
 			}
@@ -302,14 +201,14 @@ full_command: full_conveyor '\n'
 					}
 					if($2->back().conv==AND_CONV || $2->back().conv==OR_CONV)
 					{//если вторая команда была незаконченным конвейером, просим пользователя его завершить
-						std::cout<<"| ";
+						begin_line="| ";
 						ret=$2;
 					}
 					else
 					{
 						//print full conveyor
 						print_conveyor($2);
-						std::cout<<"\n> ";
+						begin_line="\n> ";
 						delete $2;
 						ret=nullptr;
 					}
@@ -318,16 +217,28 @@ full_command: full_conveyor '\n'
 				{//команды не было
 					if($1 && ($1->back().conv==AND_CONV || $1->back().conv==OR_CONV))
 					{//если первая команда была незаконченным конвейером, просим пользователя его завершить
-						std::cout<<"| ";
+						begin_line="| ";
 						ret=$1;
 					}
 					else
 					{//иначе просто просим ввести команду
-						std::cout<<"> ";
+						begin_line="> ";
 						ret=nullptr;
 					}
 				}
 				$$=ret;
+			}
+			| error '\n' 
+			{
+				yyerrok;
+				begin_line="> ";
+				$$=nullptr;
+			}
+			| full_command error '\n' 
+			{
+				yyerrok;
+				begin_line="> ";
+				$$=nullptr;
 			}
 			;
 			
