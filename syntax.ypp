@@ -270,8 +270,8 @@ full_command: full_conveyor '\n'
 					{
 						 //print full conveyor
 						 print_conveyor($1);
-						 std::cout<<"\n> ";
 						 delete $1;
+						 std::cout<<"\n> ";
 						 $$=nullptr;
 					}
 					else
@@ -296,7 +296,7 @@ full_command: full_conveyor '\n'
 						if($1->back().conv==AND_CONV || $1->back().conv==OR_CONV)
 						{//first conveyor isn't finished. concatenate both
 							$2->insert( $2->begin(), $1->begin(), $1->end() );
-                            //delete $1;
+                            delete $1;
 							ret=$2;
 						}
 					}
@@ -360,6 +360,16 @@ finished_conveyor: finished_conveyor AND command
                      //delete $3;
 					 $$=$1;
 				 }
+				 | finished_conveyor ';' command
+				 {
+					 if(!$1->empty())
+                     {
+						$1->back().conv=SEMICOLON_CONV;
+					 }
+					 $1->push_back(*$3);
+                     //delete $3;
+					 $$=$1;
+				 }
 				 | command
                  {
                      std::vector<conveyor> *ret=new std::vector<conveyor>;
@@ -386,6 +396,14 @@ unfinished_conveyor: finished_conveyor AND /*empty*/
 					 }
 					 $$=$1;
 				 }
+				 | finished_conveyor ';' /*empty*/
+				 {
+                     if(!$1->empty())
+                     {
+						$1->back().conv=SEMICOLON_CONV;
+					 }
+					 $$=$1;
+				 }
 				 ;
 	
 command: comm
@@ -394,13 +412,6 @@ command: comm
 			c->command=*$1;
 			c->conv=NO_CONV;
             $$=c;
-		}
-		| comm ';'
-		{
-			conveyor *c=new conveyor;
-			c->command=*$1;
-			c->conv=SEMICOLON_CONV;
-			$$=c;
 		}
 		;
 
