@@ -46,37 +46,46 @@ enum type
 };
 
 struct func;
-struct chain;
+struct object;
 class object_proto;
 
-struct arg_list//for func
+struct arg//for func
 {
-    uint32_t number;
     std::string var_name;
-    type type_val;
     union
     {
-        double      num;
-        char*       str;//have no dots or brackets. though may be func or object
-        chain*      obj;//have dots
-        func*       f;//have brackets
+        double      				num;
+        char*       				str;//have no dots or brackets. though may be func or object
+        std::vector<object>*      	obj;//have dots
+        func*       				f;//have brackets
     } val;
-    std::shared_ptr<arg_list> prev_arg;
-    std::shared_ptr<arg_list> next_arg;
-    ~arg_list()
+    type type_val;
+    /*~arg()
     {
-        if(next_arg.get())
-            next_arg.reset();
-    }
+        switch(type_val)
+        {
+            case WORD_T:
+                delete [] val.str;
+            break;
+            case OBJECT:
+                delete val.obj;
+            break;
+            case FUNCTION:
+            case VOID:
+            default:
+            
+            break;
+        }
+    }*/
 };
 
 struct func//from command-line
 {
     std::string name;
-    arg_list *args;
+    std::unique_ptr<std::vector<arg>> args;
 };
 
-typedef int (*func_type)(arg_list*);//always return error code or zero.
+typedef int (*func_type)(std::vector<arg>);//always return error code or zero.
 									//always have arg list
 
 struct arg_proto//for func_proto
@@ -97,7 +106,7 @@ struct func_proto//for comparing with proto
         return (this->name<a.name);
     }
 };
-
+/*
 class object_proto //for hierarchy
 {
     private:
@@ -118,23 +127,26 @@ class object_proto //for hierarchy
         {
             return parent;
         }
-};
+};*/
 
-struct chain
+struct object
 {
-    uint32_t number;
     union{
             char* obj_name;
             func*  f;
-         }object;
+         }obj;
     bool is_object;
-    std::shared_ptr<chain> prev_link;
-    std::shared_ptr<chain> next_link;
-    ~chain()
+    /*~object()
     {
-        if(next_link.get())
-            next_link.reset();
-    }
+        if(is_object)
+        {
+            delete [] obj.obj_name;
+        }
+        else
+        {
+            delete obj.f;
+        }
+    }*/
 };
 
 enum conv_type
@@ -147,15 +159,9 @@ enum conv_type
 
 struct conveyor
 {
-    uint32_t  number;
-    chain*    command;
+    std::vector<object>  command;
     conv_type conv;
-    std::unique_ptr<conveyor> prev_link;
-    conveyor* next_link;
-    ~conveyor()
-    {
-        //std::cout<<"destructor "<<number<<" "<<command->object.obj_name<<std::endl;
-    }
 };
+
 
 #endif

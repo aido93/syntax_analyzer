@@ -1,15 +1,15 @@
-CC=gcc
+CC=clang
 CXX=g++
 BUILDDIR=build
 
 all: syntax.o lex.o
-	$(CXX) -O2 -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o -lfl -lreadline -o test
+	$(CXX) -ggdb -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o -lfl -lreadline -o test
 
 lex.o: $(BUILDDIR)/lex.yy.c
-	$(CC) $(BUILDDIR)/lex.yy.c -c -o $(BUILDDIR)/lex.o
+	$(CXX) -std=c++11 -Wall -pedantic $(BUILDDIR)/lex.yy.c -I. -c -o $(BUILDDIR)/lex.o
     
 syntax.o: $(BUILDDIR)/syntax.tab.cpp
-	$(CXX) -std=c++11 $(BUILDDIR)/syntax.tab.cpp -I. -c -o $(BUILDDIR)/syntax.o
+	$(CXX) -std=c++11 -Wall -pedantic $(BUILDDIR)/syntax.tab.cpp -I. -c -o $(BUILDDIR)/syntax.o
     
 $(BUILDDIR)/syntax.tab.cpp: syntax.ypp
 	bison -d -t syntax.ypp -o $(BUILDDIR)/syntax.tab.cpp

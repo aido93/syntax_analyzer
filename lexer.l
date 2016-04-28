@@ -1,7 +1,11 @@
 %{
 #include <stdio.h>
 #include <stdint.h>
+#include <vector>
+#include "types.hpp"
 #include "syntax.tab.hpp"
+#include <readline/readline.h>
+extern "C" int yylex();
 %}
 
 %%
