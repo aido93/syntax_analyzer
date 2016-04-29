@@ -26,75 +26,68 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#ifndef PROTOTYPES_HPP
+#define PROTOTYPES_HPP
 
-#include <memory>
-#include <string>
+#include "types.hpp"
+#include <map>
 #include <vector>
-#include <stdint.h>
-#include <readline/readline.h>
+#include <memory>
+#include <functional>
 
-enum type
+enum class real_types
 {
-    VOID,
-	NUM_T,
-	WORD_T,
-    OBJECT,
-    FUNCTION,
-    FILENAME_T
+    BROKER,
+    USER,
+    ASSET,
+    NUM,
+    WORD,
+    BOOL,
+    VOID
 };
 
-struct func;
-struct object;
-class object_proto;
-
-struct arg//for func
+struct arg_proto//for func_proto
 {
+    real_types type_val;//name of the arg type
     std::string var_name;
-    union
-    {
-        double      				num;
-        char*       				str;//have no dots or brackets. though may be func or object
-        std::vector<object>*      	obj;//have dots
-        func*       				f;//have brackets
-    } val;
-    type type_val;
 };
 
-struct func//from command-line
+struct func_proto//for comparing with proto
 {
-    std::string name;
-    std::unique_ptr<std::vector<arg>> args;
+    std::string desc;
+    real_types ret_type;
+    std::vector<arg_proto> args;
+    std::function<int(std::vector<arg>*)> p_func;
 };
 
-//typedef int (*func_type)(std::vector<arg>*);//always return error code or zero.
-									//always have arg list
-
-struct object
+class object_proto //for hierarchy
 {
-    union{
-            char* obj_name;
-            func*  f;
-         }obj;
-    bool is_object;
+    private:
+        const std::string name;
+        const std::unique_ptr<object_proto> parent;
+        virtual void init_methods() = 0;
+        virtual void init_childrens() = 0;
+    protected:
+        std::map<std::string, func_proto>   methods;
+        std::map<std::string, func_proto>   method_aliases;
+        std::vector<std::shared_ptr<object_proto>> childrens;
+    public:
+        object_proto(const std::string & _name, 
+                     object_proto* _parent): 
+                     name(_name), parent(std::move(_parent))
+                     {
+                         //init_methods();
+                     }
+        ~object_proto(){}
+        std::function<int(std::vector<arg>*)> find_method(const std::string & name);
+        std::shared_ptr<object_proto> find_children(const std::string & name);
+        const std::string get_name() const
+        {
+            return name;
+        }
+        const std::unique_ptr<object_proto> & get_parent() const
+        {
+            return parent;
+        }
 };
-
-enum conv_type
-{
-	AND_CONV,//&&
-	OR_CONV,//||
-	SEMICOLON_CONV,//; - default
-	NO_CONV
-};
-
-struct conveyor
-{
-    std::vector<object>  command;
-    conv_type conv;
-};
-
-typedef int (*fe_type)(std::vector<func>*);//function executor
-typedef int (*oe_type)(std::vector<object>*);//object executor
-typedef void (*ce_type)(std::vector<conveyor>*);//conveyor executor
 #endif

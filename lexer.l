@@ -8,13 +8,13 @@
 #include <readline/readline.h>
 static char* residue_string=NULL;
 static char* input_line=NULL;
-extern const char* begin_line;
+extern std::string begin_line;
 #define YY_INPUT(buf,result,max_size) \
 	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
 		{ \
 		if(!residue_string)\
 		{\
-			input_line=readline(begin_line);\
+			input_line=readline(begin_line.c_str());\
 			residue_string=input_line;\
 		}\
 		size_t n; \
@@ -51,15 +51,18 @@ extern const char* begin_line;
 %}
 
 %%
-[a-zA-Z][a-zA-Z0-9]*    yylval.str=strdup(yytext); return WORD;
+[a-zA-Z-][a-zA-Z0-9-]*  yylval.str=strdup(yytext); return WORD;
 \'[a-zA-Z0-9/ -]*\'		yylval.str=strdup(yytext); return FILENAME;
 [0-9]+                  yylval.num=atoi(yytext);   return NUM;
 [0-9]+"."[0-9]*         yylval.num=atof(yytext);   return NUM;
-[,;()\n]                return *yytext;
 \.                      return DOT;
-[ \t]+                  /* пропускаем пробелы и табы*/;
+[ \t]+                  return ' ';/* пропускаем пробелы и табы, возвращаем 1 пробел*/;
+[ \t]*\([ \t]*  		return '(';
+[ \t]*\)[ \t]*  		return ')';
+[ \t]*\,[ \t]*  		return ',';
+[ \t]*\;[ \t]*  		return ';';
+\n				  		return '\n';
 \+						return PLUS;
-\-						return MINUS;
 \*						return MULT;
 \/						return DIV;
 \|						return CONVEY;

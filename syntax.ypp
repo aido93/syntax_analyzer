@@ -2,8 +2,9 @@
 //bison -d -t syntax.y && flex lexer.l && gcc lex.yy.c syntax.tab.c -o test
 #include <iostream>
 #include <string>
+#include <functional>
 #include "types.hpp"
-//#include <readline/readline.h>
+#include "root.hpp"
 #if defined (HAVE_LOCALE_H)
 #  include <locale.h>
 #endif
@@ -31,14 +32,21 @@ int yywrap()
         return 1;
 } 
 
+//ce_type conveyor_executor=print_conveyor;
+std::function<void(std::vector<conveyor>*)> conveyor_executor;
+
+void print_function(func* f);
+void print_object(std::vector<object>* obj);
+void print_conveyor(std::vector<conveyor>* c);
+
 int main()
 {
-    //initialize_readline ();
+    root r;
+    conveyor_executor=[&r](std::vector<conveyor>* args) -> void {r.exec_conveyor(args);};
+    //conveyor_executor=print_conveyor;
     yyparse();
     return 0;
 } 
-
-void print_function(func* f);
 
 void print_object(std::vector<object>* obj)
 {
@@ -134,9 +142,6 @@ void print_conveyor(std::vector<conveyor>* c)
     }
 }
 
-//#include "embedded_functions.hpp"
-
-
 %}
 
 %union {
@@ -152,10 +157,10 @@ conveyor                *command_conveyor;
 %token <num> NUM
 %token <str> WORD
 %type  <seq> func_args;
-%type  <func_val>   function;
+%type  <func_val>   function bashlike_command;
 %type  <command_conveyor>       command;
 %type  <convey>       finished_conveyor full_command full_conveyor  unfinished_conveyor
-%type  <obj_list>     gen_command comm object_chains
+%type  <obj_list>     comm object_chains
 %token DOT PLUS MINUS MULT DIV AND OR CONVEY ANYTHING FILENAME
 
 %%
@@ -168,7 +173,7 @@ full_command: full_conveyor '\n'
 					if($1->back().conv!=AND_CONV && $1->back().conv!=OR_CONV)
 					{
 						 //print full conveyor
-						 print_conveyor($1);
+						 conveyor_executor($1);
 						 delete $1;
 						 begin_line="\n> ";
 						 $$=nullptr;
@@ -207,7 +212,7 @@ full_command: full_conveyor '\n'
 					else
 					{
 						//print full conveyor
-						print_conveyor($2);
+						conveyor_executor($2);
 						begin_line="\n> ";
 						delete $2;
 						ret=nullptr;
@@ -326,37 +331,121 @@ command: comm
 		}
 		;
 
-comm: gen_command
+comm: bashlike_command
+	{
+		object com;
+        com.is_object=false;
+        com.obj.f=$1;
+        std::vector<object> *ret=new std::vector<object>;
+        ret->push_back(com);
+        $$=ret;
+	}
+	| function
+	{
+		object com;
+        com.is_object=false;
+        com.obj.f=$1;
+        std::vector<object> *ret=new std::vector<object>;
+        ret->push_back(com);
+        $$=ret;
+	}
     | object_chains
     ;
     
-object_chains: gen_command DOT comm
-			{
-                $1->insert($1->end(),$3->begin(), $3->end());
-				$$=$1;
-			}
-			;
+object_chains: WORD DOT WORD
+			 {
+				 object com;
+                 com.is_object=true;
+                 com.obj.obj_name=$1;
+                 std::vector<object> *ret=new std::vector<object>;
+                 ret->push_back(com);
+                 com.obj.obj_name=$3;
+                 ret->push_back(com);
+                 $$=ret;
+			 }
+			 | function DOT WORD
+			 {
+				 object com;
+                 com.is_object=false;
+                 com.obj.f=$1;
+                 std::vector<object> *ret=new std::vector<object>;
+                 ret->push_back(com);
+                 com.obj.obj_name=$3;
+                 com.is_object=true;
+                 ret->push_back(com);
+                 $$=ret;
+			 }
+			 | WORD DOT function
+			 {
+				 object com;
+                 com.is_object=true;
+                 com.obj.obj_name=$1;
+                 std::vector<object> *ret=new std::vector<object>;
+                 ret->push_back(com);
+                 com.obj.f=$3;
+                 com.is_object=false;
+                 ret->push_back(com);
+                 $$=ret;
+			 }
+			 | function DOT function
+			 {
+				 object com;
+                 com.is_object=false;
+                 com.obj.f=$1;
+                 std::vector<object> *ret=new std::vector<object>;
+                 ret->push_back(com);
+                 com.obj.f=$3;
+                 ret->push_back(com);
+                 $$=ret;
+			 }
+			 | object_chains DOT WORD
+			 {
+				 object com;
+                 com.is_object=true;
+                 com.obj.obj_name=$3;
+                 $1->push_back(com);
+				 $$=$1;
+			 }
+			 | object_chains DOT function
+			 {
+                 object com;
+                 com.is_object=false;
+                 com.obj.f=$3;
+                 $1->push_back(com);
+				 $$=$1;
+			 }
+			 ;
 
-gen_command : WORD 
-            {
-                object com;
-                com.is_object=true;
-                com.obj.obj_name=$1;
-                std::vector<object> *ret=new std::vector<object>;
-                ret->push_back(com);
-                $$=ret;
-            }
-			| function
-            {
-                object com;
-                com.is_object=false;
-                com.obj.f=$1;
-                std::vector<object> *ret=new std::vector<object>;
-                ret->push_back(com);
-                $$=ret;
-            }
-            ;
-
+bashlike_command : WORD
+				 {
+					 func *f=new func;
+					 f->name=$1;
+					 f->args=nullptr;
+					 $$=f;
+				 }
+				 | bashlike_command ' ' WORD
+				 {
+					 if(!$1->args)
+					 {
+						  std::vector<arg> *curr_args=new std::vector<arg>;
+						  arg c;
+						  c.val.str=$3;
+						  c.type_val=WORD_T;
+						  curr_args->push_back(c);
+						  $1->args=std::unique_ptr<std::vector<arg>>(curr_args);
+						  $$=$1;
+					 }
+					 else
+					 {
+						  arg c;
+						  c.val.str=$3;
+						  c.type_val=WORD_T;
+						  $1->args->push_back(c);
+						  $$=$1;
+					 }
+				 }
+				 ;
+				 
 function: WORD '(' func_args 
         {
             func *f=new func;
@@ -383,15 +472,14 @@ func_args :
                 $$=$3;
             }
                                  
-          | WORD   ',' func_args 
+          | WORD ',' func_args 
             {  
                 arg c;
                 c.val.str=$1;
                 c.type_val=WORD_T;
                 $3->push_back(c);
                 $$=$3;
-            }
-                                                      
+            }                                           
           | NUM ')'
             {  
                 std::vector<arg> *curr_args=new std::vector<arg>;
@@ -410,8 +498,7 @@ func_args :
                 c.type_val=WORD_T;
                 curr_args->push_back(c);
                 $$=curr_args;
-            }
-                                 
+            }                     
           | function ',' func_args 
             {  
                 arg c;
