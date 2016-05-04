@@ -336,37 +336,64 @@ void root::init_childrens()
 	
 }
 
-int root::ret_object(std::vector<object>* obj)
+int root::process_object(std::vector<object>* obj)
 {
     if(obj)
     {
-		//It is safe, 'cause root must be one and creates when application begin to work
-		//and dies when application finish to work
-		object_proto* current_obj=this;
         int ret;
-        for(auto it=obj->begin(); it!=obj->end(); it++)
+        std::vector<real_func*> *func_tree;
+        
+        //первым делом при выполнении команды проверяем тип объекта и исполняемых функций
+        //эта функция проверяет само наследование объектов, возвращаемые типы функций,
+        //а также соответствие аргументов каждой функции нужному типу
+        //в retval лежит дерево вызовов функций, то есть указатели на конкретные функции 
+        //вместе с указателями на их аргументы. Если аргумент уже готов, то заполнение идет сразу.
+        //Если нет, то выделяется память создающей функцией и скидывает туда указатель на выделенную память
+        //Заполнение аргументов будет идти в обратном порядке по вектору
+        ret=check_obj_childrens(obj, func_tree);
+        if(ret)
+            return ret;
+        
+        rettype tmp;
+        uint32_t func_counter;
+        //только если проверка успешна - начинаем выполнять
+        for(auto it=func_tree.rbegin(); it!=func_tree.rend(); it++)
         {
-            if(!(it->is_object))//function
+            func_counter++;
+            tmp={0, real_types::VOID};
+            //создаем список аргументов
+            std::vector<rettype> a;
+            for(auto it1=it->args.begin();it1!=it->args.end(); it1++)
             {
-                ret=exec_function(it->obj.f);
-                if(ret)
-                    return ret;
+                a.push_back(it1->pointer);
             }
-            else
+            //вызываем функцию
+            ret=(*it)->f(&a, &tmp);
+            if(ret)
             {
-				current_obj=current_obj->find_children(it->obj.obj_name).get();
-				estdout.str(std::string());
-				if(!current_obj)
-				{
-					return OBJECT_NOT_FOUND;
-				}
+                delete func_tree;
+                return ret;
+            }
+                
+            //что-то получили на выходе
+            //проставляем зависимости других функций
+            for(auto it1=func_tree.rbegin(); it1!=it; it1--)
+            {
+                for(auto it2=it1->args.begin(); it2!=it1->args.end(); it2++)
+                {
+                    if(it2->num_of_func==func_counter)
+                    {
+                        it2->pointer=tmp;
+                    }
+                }
             }
         }
+        delete func_tree;
     }
     return 0;
 }
 
-int root::exec_function(func* f, rettype* retval)
+int root::exec_function(real_func* f, rettype* retval)
 {
     auto it=methods.find(f->name);
     int ret;
@@ -411,7 +438,7 @@ int root::exec_function(func* f, rettype* retval)
  * Если такого объекта или функции не найдено и функция принимает на вход WORD, 
  * то берем само слово
  * */
-int root::check_func_arg_types(func* fp, rettype* ret)
+int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
 {
     auto it=methods.find(fp->name);
     gen_function f=nullptr;
@@ -498,37 +525,127 @@ int root::check_func_arg_types(func* fp, rettype* ret)
     }
 }
 
-int root::check_obj_childrens(std::vector<object>* obj, rettype* ret)
+int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>* pointers_tree, real_types* rt)
 {
 	if(obj)
     {
 		//It is safe, 'cause root must be one and creates when application begin to work
 		//and dies when application finish to work
 		object_proto* current_obj=this;
-		rettype r=rettype::VOID;
+		real_types r=real_types::VOID, old_r;
+        bool is_void=true;
+        std::vector<real_func*>* pt=new std::vector<real_func>(obj->size());
+        real_func* f;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
-            if(!(it->is_object))//function(args) apriori
-            {
-                ret=check_func_arg_types(it->obj.f, &r);
-                if(ret)
-                {//if there was any error - go out (or try to find all errors?)
-                    return ret;
-				}
+            if(is_void || r!=real_types::VOID)
+            {//для первого прохода
+                f=nullptr;
+                old_r=r;//иерархия root-брокер-юзер-акция
+                if(!(it->is_object))//function(args) apriori
+                {
+                    //проверяем аргументы функции, заносим в r тип возврата
+                    ret=check_func_arg_types(it->obj.f, &r, f);
+                    if(ret)
+                    {//if there was any error - go out (or try to find all errors?)
+                        return ret;
+                    }
+                    else
+                    {
+                        //enabled hierarchy
+                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
+                           (old_r==real_types::VOID && r==real_types::WORD) ||
+                           (old_r==real_types::VOID && r==real_types::NUM) ||
+                           (old_r==real_types::VOID && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM))
+                        pt->push_back(f);
+                        else
+                        {
+                            estderr<<"Forbidden hierarchy type!"<<std::endl;
+                            return FUNCTION_FALSE_ARGUMENTS;
+                        }
+                    }
+                }
+                else
+                {//may be object or function
+                    current_obj=current_obj->find_children(it->obj.obj_name).get();
+                    if(!current_obj)
+                    {//one-word function
+                        ret=check_func_arg_types({it->obj.obj_name, nullptr}, &r, f);
+                        if(ret)
+                        {//if there was any error - go out (or try to find all errors?)
+                            return OBJECT_NOT_FOUND;
+                            //return ret;
+                        }
+                        else
+                        {
+                            //enabled hierarchy
+                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
+                           (old_r==real_types::VOID && r==real_types::WORD) ||
+                           (old_r==real_types::VOID && r==real_types::NUM) ||
+                           (old_r==real_types::VOID && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM))
+                            pt->push_back(f);
+                        }
+                    }
+                    else
+                    {//argument of the function
+                        r=current_obj->get_type();
+                        //enabled hierarchy
+                        if(!((old_r==real_types::VOID && r==real_types::BROKER) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM)))
+                          {
+                              estderr<<"Forbidden hierarchy type!"<<std::endl;
+                              return FUNCTION_FALSE_ARGUMENTS;
+                          }
+                    }
+                }
+                is_void=false;
             }
             else
-            {//may be object or function
-				current_obj=current_obj->find_children(it->obj.obj_name).get();
-				if(!current_obj)
-				{
-					return OBJECT_NOT_FOUND;
-				}
-				r=current_obj->get_ret_type();
+            {
+                estderr<<"Some function returns void, but void cannot be the argument"<<std::endl;
+                return FUNCTION_FALSE_ARGUMENTS;
             }
         }
-        
+        pointer_tree=pt;
+        *rt=r;//?
         //мы вышли из цикла, а значит, что все слова нашлись где надо
     }
+    return 0;
 }
 
 #include "colour.hpp"
@@ -568,7 +685,7 @@ void root::exec_conveyor(std::vector<conveyor>* c)
         int ret;
         for(auto it=c->begin(); it!=c->end(); it++)
         {
-            ret=ret_object(&it->command);
+            ret=process_object(&it->command);
             //Errors first
             show_error(ret);
             estderr.str(std::string());

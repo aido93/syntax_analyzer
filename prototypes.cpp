@@ -28,3 +28,22 @@ std::shared_ptr<object_proto> object_proto::find_children(const std::string & na
     }
     return nullptr;
 }
+
+std::shared_ptr<func_proto> object_proto::find_method(const std::string & name)
+{
+    auto it=methods.find(name);
+    if(it!=methods.end())
+    {
+        return std::shared_ptr<func_proto>(&it->second);
+    }
+    else
+    {
+        it=method_aliases.find(name);
+        if(it!=methods.end())
+        {
+            return std::shared_ptr<func_proto>(it->second);
+        }
+    }
+    return nullptr;
+}
+

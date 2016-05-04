@@ -43,6 +43,8 @@ enum class real_types
     ASSET,
     NUM,
     WORD,
+    SMATRIX,//Symmetric matrix
+    MATRIX,
     BOOL
 };
 
@@ -57,16 +59,28 @@ struct rettype
     real_types ret_type;
     union
     {
-        broker*     b;
-        user*       u;
-        asset*      a;
-        bool        boolean;
-        double      num;
-        char*       str;//have no dots or brackets. though may be func or object
+        broker*         b;
+        user*           u;
+        asset*          a;
+        bool            boolean;
+        double          num;
+        std::string*    str;//have no dots or brackets. though may be func or object
     } val;
 };
 
 typedef int(*gen_function)(std::vector<rettype>*, rettype*);
+
+struct arg_dependencies
+{
+    uint32_t num_of_func;//in vector. 0 - no func.
+    rettype pointer;
+};
+
+struct real_func
+{
+    gen_function f;
+    std::vector<arg_dependencies> args;
+};
 
 struct func_proto//for comparing with proto
 {
@@ -83,19 +97,25 @@ class object_proto //for hierarchy
         const std::unique_ptr<object_proto> parent;
         virtual void init_methods() = 0;
         virtual void init_childrens() = 0;
+        real_types t;
     protected:
         std::map<std::string, func_proto>   methods;
-        std::map<std::string, func_proto>   method_aliases;
+        std::map<std::string, func_proto*>   method_aliases;
         std::vector<std::shared_ptr<object_proto>> childrens;
+        real_types get_type() const
+        {
+            return t;
+        }
     public:
         object_proto(const std::string & _name, 
-                     object_proto* _parent): 
-                     name(_name), parent(std::move(_parent))
+                     object_proto* _parent, real_types _t): 
+                     name(_name), parent(std::move(_parent)), t(_t)
                      {
                          //init_methods();
                      }
         ~object_proto(){}
         std::shared_ptr<object_proto> find_children(const std::string & name);
+        std::shared_ptr<func_proto> find_method(const std::string & name);
         const std::string get_name() const
         {
             return name;
