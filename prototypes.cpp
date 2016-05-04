@@ -17,19 +17,6 @@
  */
 #include "prototypes.hpp"
 
-std::function<int(std::vector<arg>*)> object_proto::find_method(const std::string & name)
-{
-    auto it=methods.find(name);
-    if(it!=methods.end())
-    {
-        return it->second.p_func;
-    }
-    else
-    {
-        return nullptr;
-    }
-}
-
 std::shared_ptr<object_proto> object_proto::find_children(const std::string & name)
 {
     for(auto it=childrens.begin(); it!=childrens.end(); it++)

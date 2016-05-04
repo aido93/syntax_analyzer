@@ -411,7 +411,7 @@ int root::exec_function(func* f, rettype* retval)
  * Если такого объекта или функции не найдено и функция принимает на вход WORD, 
  * то берем само слово
  * */
-rettype root::check_func_arg_types(func* fp)
+int root::check_func_arg_types(func* fp, rettype* ret)
 {
     auto it=methods.find(fp->name);
     gen_function f=nullptr;
@@ -421,6 +421,7 @@ rettype root::check_func_arg_types(func* fp)
     {
         f=it->second.p_func;
         arg_prototypes=it->second.args;
+        *ret=it->second.ret_type;
         is_found=true;
     }
     else
@@ -430,49 +431,57 @@ rettype root::check_func_arg_types(func* fp)
 		{
             f=it_alias->second.p_func;
             arg_prototypes=it->second.args;
+            *ret=it->second.ret_type;
             is_found=true;
 		}
     }
     
     if(is_found)
     {
-        if(ret)
+        if(f)
         {
             uint32_t num=0;
-            //fp->args.get();//given from user
-            //arg_prototypes;//arg proto in function
             for(auto it=fp->args->begin(); it!=fp->args->end(); it++)
-            {
+            {//перебираем аргументы от пользователя
                 for(auto it_proto=arg_prototypes.begin(); 
                          it_proto!=arg_prototypes.end(); it_proto++)
-                {
+                {//ищем его в дереве возможных прототипов
                     if(it->type_val==NUM_T && it_proto[num]->type_val==NUM)
-                    {//приоритет не тот
-                        break;
-                    }
-                    else if(it->type_val==WORD_T && it_proto[num]->type_val==WORD)
                     {
                         break;
                     }
                     else if(it->type_val==FUNCTION)
                     {
-                        rettype s=check_func_arg_types(it->val.f);
-                        if(s==it_proto[num]->type_val)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            estderr<<"False parameter type\n";
-                        }
+                        rettype s;
+                        int was_error=check_func_arg_types(it->val.f, &s);
+                        if(!was_error)
+						{
+							if(it_proto->size() >= num && s==it_proto[num]->type_val)
+							{//функция принимает на вход аргумент нужного типа
+								//возврат одной функции равен приему другой функции
+								break;
+							}
+							else
+							{
+								estderr<<"False parameter type "<<num<<"\n";
+							}
+						}
+						else
+						{
+							error
+						}
                     }
                     else if(it->type_val==OBJECT)
-                    {
+                    {//точки...
                         
                     }
                     else if(it->type_val==VOID)
                     {
                         error
+                    }
+                    else if(it->type_val==WORD_T && it_proto[num]->type_val==WORD)
+                    {//приоритет не тот
+                        break;
                     }
                 }
                 num++;
@@ -486,6 +495,39 @@ rettype root::check_func_arg_types(func* fp)
     else
     {
         return FUNCTION_NOT_FOUND;
+    }
+}
+
+int root::check_obj_childrens(std::vector<object>* obj, rettype* ret)
+{
+	if(obj)
+    {
+		//It is safe, 'cause root must be one and creates when application begin to work
+		//and dies when application finish to work
+		object_proto* current_obj=this;
+		rettype r=rettype::VOID;
+        for(auto it=obj->begin(); it!=obj->end(); it++)
+        {
+            if(!(it->is_object))//function(args) apriori
+            {
+                ret=check_func_arg_types(it->obj.f, &r);
+                if(ret)
+                {//if there was any error - go out (or try to find all errors?)
+                    return ret;
+				}
+            }
+            else
+            {//may be object or function
+				current_obj=current_obj->find_children(it->obj.obj_name).get();
+				if(!current_obj)
+				{
+					return OBJECT_NOT_FOUND;
+				}
+				r=current_obj->get_ret_type();
+            }
+        }
+        
+        //мы вышли из цикла, а значит, что все слова нашлись где надо
     }
 }
 

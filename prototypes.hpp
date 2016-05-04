@@ -37,13 +37,13 @@
 
 enum class real_types
 {
+	VOID,
     BROKER,
     USER,
     ASSET,
     NUM,
     WORD,
-    BOOL,
-    VOID
+    BOOL
 };
 
 struct arg_proto//for func_proto
@@ -95,7 +95,6 @@ class object_proto //for hierarchy
                          //init_methods();
                      }
         ~object_proto(){}
-        std::function<int(std::vector<arg>*)> find_method(const std::string & name);
         std::shared_ptr<object_proto> find_children(const std::string & name);
         const std::string get_name() const
         {

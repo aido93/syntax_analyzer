@@ -8,7 +8,10 @@ class root : public object_proto
 		std::string CUR_DIR;//current directory
 		std::string PREV_DIR;//previous directory
         int exec_function(func* f, rettype* retval);//return error code
-        rettype check_func_arg_types(func* fp);
+        
+        int check_func_arg_types(func* fp, rettype* ret);
+        int check_obj_childrens(std::vector<object>* obj, rettype* ret);
+        
         int ret_object(std::vector<object>* obj);//return error code
         virtual void init_methods() final;
         virtual void init_childrens() final;
