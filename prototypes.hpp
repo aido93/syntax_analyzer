@@ -52,12 +52,28 @@ struct arg_proto//for func_proto
     std::string var_name;
 };
 
+struct rettype
+{
+    real_types ret_type;
+    union
+    {
+        broker*     b;
+        user*       u;
+        asset*      a;
+        bool        boolean;
+        double      num;
+        char*       str;//have no dots or brackets. though may be func or object
+    } val;
+};
+
+typedef int(*gen_function)(std::vector<rettype>*, rettype*);
+
 struct func_proto//for comparing with proto
 {
     std::string desc;
     real_types ret_type;
-    std::vector<arg_proto> args;
-    std::function<int(std::vector<arg>*)> p_func;
+    std::vector<std::vector<arg_proto>> args;
+    std::function<gen_function> p_func;
 };
 
 class object_proto //for hierarchy

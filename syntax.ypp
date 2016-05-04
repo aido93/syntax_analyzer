@@ -98,7 +98,6 @@ void print_function(func* f)
                     print_function(it->val.f);
                 break;
                 
-                case FILENAME_T:
                 default:
                 break;
             }
@@ -161,7 +160,7 @@ conveyor                *command_conveyor;
 %type  <command_conveyor>       command;
 %type  <convey>       finished_conveyor full_command full_conveyor  unfinished_conveyor
 %type  <obj_list>     comm object_chains
-%token DOT PLUS MINUS MULT DIV AND OR CONVEY ANYTHING FILENAME
+%token DOT AND OR CONVEY ANYTHING FILENAME
 
 %%
 

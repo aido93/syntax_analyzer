@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 #include <functional>
+#include <boost/filesystem.hpp>
+#include "errcode.hpp"
 
 std::stringstream estdout;
 std::stringstream estderr;
@@ -14,32 +16,44 @@ root::~root()
 	
 }
 
-int root::exit(std::vector<arg> *in)
+int root::exit(std::vector<rettype> *in, rettype* retval)
 {
 	::exit(EXIT_SUCCESS);
     return 0;
 }
 
-int root::help(std::vector<arg> *in)
+int root::help(std::vector<rettype> *in, rettype* retval)
 {
 	estdout<<"This is help"<<std::endl;
     for(auto it=methods.begin(); it!=methods.end();it++)
     {
         estdout<<it->first<<"\t - \t"<<it->second.desc<<std::endl;
     }
+    retval=nullptr;
 	return 0;
 }
 
-int root::pwd(std::vector<arg> *in)
+int root::pwd(std::vector<rettype> *in, rettype* retval)
 {
-	estdout<<CUR_DIR<<std::endl;
-	return 0;
+    if(!in)
+    {
+        estdout<<CUR_DIR<<std::endl;
+        retval->type_val=WORD;
+        retval->val.str=CUR_DIR;
+        return 0;
+    }
+    else
+    {
+        estderr<<"Function takes no arguments!"<<std::endl;
+        return FUNCTION_FALSE_ARGUMENTS;
+    }	
 }
 
-int root::ls(std::vector<arg>* in)
+int root::ls(std::vector<rettype>* in, rettype* retval)
 {
 	std::string args;
 	bool has_name=false;
+    int ret;
 	if(in)
 	{
 		for(auto it=in->begin(); it!=in->end(); it++)
@@ -47,52 +61,45 @@ int root::ls(std::vector<arg>* in)
 			switch(it->type_val)
 			{
 				case WORD_T:
-				case FILENAME_T:
 				{
 					args+=it->val.str;
-					//if(is_filename(it->val.num))
-					//{
-						has_name=true;
-					//}
+                    has_name=true;
 				}
 				break;
 				case NUM_T:
 				{
 					args+=it->val.num;
-					//if(is_filename(it->val.num))
-					//{
-						has_name=true;
-					//}
+					has_name=true;
 				}
 				break;
 				case VOID:
+                {
 					estderr<<"Incorrect type (void) for the argument "<<std::distance(in->begin(), it)<<"\n";
-					//estdout="";
-					return -1;
+					return FUNCTION_FALSE_ARGUMENTS;
+                }
 				case OBJECT:
-					ret_object(it->val.obj);
-					/*int ret=ret_object(it->val.obj);
+                {
+					ret=ret_object(it->val.obj);
 					if(ret)
 					{
-						//estdout="";
 						return ret;
-					}*/
+					}
 					//estderr<<"Incorrect type (object) for the argument "<<arg->number<<"\n";
 					//return -1;
+                }
 				break;
 				case FUNCTION:
-					exec_function(it->val.f);
-					/*int ret=exec_function(it->val.f);
+                {
+					ret=exec_function(it->val.f);
 					if(ret)
 					{
-						//estdout="";
 						return ret;
-					}*/
+					}
+                }
 				break;
 				default:
 					estderr<<"Undefined type for the argument "<<std::distance(in->begin(), it)<<"\n";
-					//estdout="";
-					return -2;
+					return UNDEFINED_TYPE;
 				break;
 			}
 		}
@@ -102,45 +109,158 @@ int root::ls(std::vector<arg>* in)
 		system((std::string("ls ")/*+estdout.c_str()*/+CUR_DIR).c_str());
 	else
 		system((std::string("ls ")+args).c_str());
-	//estdout="";
 	return 0;
+}
+
+int root::cd(std::vector<rettype>* in, rettype* retval)
+{
+    int ret;
+	if(in)
+	{
+		for(auto it=in->begin(); it!=in->end(); it++)
+		{
+			switch(it->type_val)
+			{
+				case WORD_T:
+				{
+                    boost::filesystem::path p(it->val.str);
+                    if (boost::filesystem::exists(p))    // does path p actually exist?
+                    {
+                        if (boost::filesystem::is_regular_file(p))
+                        {
+                            //error
+                        }
+                        else if (boost::filesystem::is_directory(p))      // is path p a directory?
+                        {
+                            PREV_DIR=CUR_DIR;
+                            CUR_DIR=boost::filesystem::absolute(p).c_str();
+                        }
+                        else
+                        {
+                            std::cout << p << " exists, but is not a regular file or directory\n";
+                        }
+                    }
+                    else
+                    {
+                        std::cout << p << " does not exist\n";
+                    }
+				}
+				break;
+				case NUM_T:
+				{
+                    boost::filesystem::path p(std::to_string(it->val.num));
+                    if (boost::filesystem::exists(p))    // does path p actually exist?
+                    {
+                        if (boost::filesystem::is_regular_file(p))
+                        {
+                            //error
+                        }
+                        else if (boost::filesystem::is_directory(p))      // is path p a directory?
+                        {
+                            PREV_DIR=CUR_DIR;
+                            CUR_DIR=boost::filesystem::absolute(p).c_str();
+                        }
+                        else
+                        {
+                            std::cout << p << " exists, but is not a regular file or directory\n";
+                        }
+                    }
+                    else
+                    {
+                        std::cout << p << " does not exist\n";
+                    }
+				}
+				break;
+				case VOID:
+					estderr<<"Incorrect type (void) for the argument "<<std::distance(in->begin(), it)<<"\n";
+					return FUNCTION_FALSE_ARGUMENTS;
+				case OBJECT:
+					ret_object(it->val.obj);
+					ret=ret_object(it->val.obj);
+					if(ret)
+					{
+						return ret;
+					}
+					//estderr<<"Incorrect type (object) for the argument "<<arg->number<<"\n";
+					//return -1;
+				break;
+				case FUNCTION:
+					ret=exec_function(it->val.f);
+					if(ret)
+					{
+						return ret;
+					}
+				break;
+				default:
+					estderr<<"Undefined type for the argument "<<std::distance(in->begin(), it)<<"\n";
+					return UNDEFINED_TYPE;
+				break;
+			}
+		}
+	}
+	return ret;
 }
 
 void root::init_methods()
 {
 	func_proto proto;
+    std::vector<arg_proto> args;
 	//---------exit--------------
     proto.desc="exit program";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args) -> int {return this->exit(args);};
+    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return this->exit(args, retval);};
+    args.clear();
+    proto.args.clear();
+    proto.args.push_back(args);
 	methods["exit"]=proto;
 	method_aliases["q"]=proto;
 	//---------help--------------
 	proto.desc="Show this message";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args) -> int {return help(args);};
+    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return help(args, retval);};
+    args.clear();
+    proto.args.clear();
+    proto.args.push_back(args);//no args
+    args.push_back({WORD, "name"});
+    proto.args.push_back(args);//1 arg
 	methods["help"]=proto;
 	method_aliases["h"]=proto;
 	//---------pwd--------------
     CUR_DIR=get_current_dir_name();
     PREV_DIR=CUR_DIR;
 	proto.desc="Print current directory";
-	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args) -> int {return pwd(args);};
+	proto.ret_type=real_types::WORD;
+    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return pwd(args, retval);};
+    args.clear();
+    proto.args.clear();
+    proto.args.push_back(args);
 	methods["pwd"]=proto;
 	//---------ls--------------
 	proto.desc="ls [options] [file] - list directory contents\n\t\tFor more information use 'man ls'";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args) -> int {return ls(args);};
-	methods["ls"]=proto;
+    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return ls(args, retval);};
+	args.clear();
+    proto.args.clear();
+    proto.args.push_back(args);
+    args.push_back({WORD, "opts_or_dir1"});
+    proto.args.push_back(args);
+    args.push_back({WORD, "opts_or_dir2"});
+    proto.args.push_back(args);
+    methods["ls"]=proto;
 	//---------cd--------------
-	/*proto.name="cd";
-	proto.arg_count=0;
-	proto.prototype=nullptr;
-	proto.desc="cd [options] [file] - change directory";
-	root->register_function(proto, cd);
+    proto.desc="cd [options] [file] - change directory";
+	proto.ret_type=real_types::VOID;
+    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return cd(args, retval);};
+	args.clear();
+    proto.args.clear();
+    proto.args.push_back(args);
+    args.push_back({WORD, "opts_or_dir1"});
+    proto.args.push_back(args);
+    args.push_back({WORD, "opts_or_dir2"});
+    proto.args.push_back(args);
+    methods["cd"]=proto;
 	//---------cat--------------
-	proto.name="cat";
+	/*proto.name="cat";
 	proto.arg_count=0;
 	proto.prototype=nullptr;
 	proto.desc="cat [options] [file] - concatenate files and print on the standard output";
@@ -216,183 +336,21 @@ void root::init_childrens()
 	
 }
 
-//инвалидация итератора. сохранять последний путь
-//структура, представляющая из себя полное древо поиска
-/*
-class type_real
-{
-    private: 
-        std::string type_name;
-        std::shared_ptr<type_real> parent;
-        std::map<func_proto, func_type> methods;
-    public:
-        std::vector<std::shared_ptr<type_real>> childrens;
-        type_real(const std::string & name,
-                  type_real* _parent,
-                  const std::map<func_proto, func_type> & _methods,
-                  const std::vector<std::shared_ptr<type_real>> & _childrens):
-                  type_name(name),
-                  parent(_parent),
-                  methods(_methods),
-                  childrens(_childrens)
-                  {
-                      
-                  }
-        type_real() = delete;
-        ~type_real(){}
-        std::shared_ptr<type_real> get_parent() const
-        {
-            return parent;
-        }
-        
-        std::string get_name() const
-        {
-            return type_name;
-        }
-        
-        func_type get_method(const char* name) const
-        {
-            for(auto it=methods.begin(); it!=methods.end(); ++it)
-            {
-                if(!strcmp(it->first.name.c_str(), name))
-                    return it->second;
-            }
-            return nullptr;
-        }
-        
-        func_type get_method(const char* name, const type* t, uint32_t arg_count) const
-        {
-            for(auto it=methods.begin(); it!=methods.end(); ++it)
-            {
-                if(!strcmp(it->first.name.c_str(), name))
-                {
-                    for(uint32_t i=0;i<arg_count;++i)
-                    {
-                        if(t[i]==it->first.prototype[i].type_val)
-                            return it->second;
-                    }
-                }
-            }
-            return nullptr;
-        }
-        
-        std::shared_ptr<type_real> get_object(const char* name) const
-        {
-            for(auto it=childrens.begin(); it!=childrens.end();++it)
-            {
-                if(!strcmp((*it)->get_name().c_str(),name))
-                {
-                    return *it;
-                }
-            }
-            return nullptr;
-        }
-        
-        func_type find_method_in_tree(const char* name, const type*t, uint32_t arg_count) const
-        {//поиск в ширину до 3 уровня (root->broker->asset). Можно сделать и дальше, но смысла нет
-            //поэтому костыль=)
-            auto ptr=get_method(name, t, arg_count);
-            if(ptr)
-            {
-                return ptr;
-            }
-            else
-            {
-                for(auto it=childrens.begin(); it!=childrens.end(); ++it)
-                {
-                    if(*it)
-                    {
-                        
-                        ptr=(*it)->get_method(name, t, arg_count);
-                        if(ptr)
-                        {
-                            return ptr;
-                        }
-                    }
-                }
-                //не вернули ничего
-                for(auto it=childrens.begin(); it!=childrens.end(); ++it)
-                {
-                    if(*it)
-                    {
-                        for(auto it1=(*it)->childrens.begin(); it1!=(*it)->childrens.end(); ++it1)
-                        {
-                            if(*it1)
-                            {
-                                ptr=(*it1)->get_method(name, t, arg_count);
-                                if(ptr)
-                                {
-                                    return ptr;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return nullptr;
-        }
-        
-        std::shared_ptr<type_real> find_object_in_tree(const char* name) const
-        {//поиск в ширину до 3 уровня (root->broker->asset). Можно сделать и дальше, но смысла нет
-            //поэтому костыль=)
-            auto ptr=get_object(name);
-            if(ptr)
-            {
-                return ptr;
-            }
-            else
-            {
-                for(auto it=childrens.begin(); it!=childrens.end(); ++it)
-                {
-                    if(*it)
-                    {
-                        ptr=(*it)->get_object(name);
-                        if(ptr)
-                        {
-                            return ptr;
-                        }
-                    }
-                }
-            }
-            return nullptr;
-        }
-
-        void register_function(const func_proto & proto, func_type body)
-        {
-            methods.emplace(proto, body);
-        }
-        
-        void add_child(const std::shared_ptr<type_real> & new_child)
-        {
-            childrens.push_back(new_child);
-        }
-
-        void delete_child(const char* name)
-        {
-            for(auto it=childrens.begin(); it<childrens.end();++it)
-            {
-                if(!strcmp((*it)->get_name().c_str(),name))
-                {
-                    childrens.erase(it);
-                }
-            }
-        }
-};
-*/
-
-void root::ret_object(std::vector<object>* obj)
+int root::ret_object(std::vector<object>* obj)
 {
     if(obj)
     {
 		//It is safe, 'cause root must be one and creates when application begin to work
 		//and dies when application finish to work
 		object_proto* current_obj=this;
-		estdout.str(std::string());
+        int ret;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
             if(!(it->is_object))//function
             {
-                exec_function(it->obj.f);
+                ret=exec_function(it->obj.f);
+                if(ret)
+                    return ret;
             }
             else
             {
@@ -400,37 +358,164 @@ void root::ret_object(std::vector<object>* obj)
 				estdout.str(std::string());
 				if(!current_obj)
 				{
-					std::cout<<"Object is not found!";
-					return;
+					return OBJECT_NOT_FOUND;
 				}
             }
         }
     }
+    return 0;
 }
 
-void root::exec_function(func* f)
+int root::exec_function(func* f, rettype* retval)
 {
     auto it=methods.find(f->name);
-    estdout.str(std::string());
+    int ret;
     if(it!=methods.end())
     {
-        it->second.p_func(f->args.get());
-        std::cout<<estdout.str();
+        if(it->second.p_func)
+        {
+            ret=it->second.p_func(f->args.get(),retval);
+            return ret;
+        }
+        else
+        {
+            return FUNCTION_NOT_DEFINED;
+        }
     }
     else
     {
 		auto it_alias=method_aliases.find(f->name);
-		estdout.str(std::string());
 		if(it_alias!=method_aliases.end())
 		{
-			it_alias->second.p_func(f->args.get());
-			std::cout<<estdout.str();
+            if(it_alias->second.p_func)
+            {
+                ret=it_alias->second.p_func(f->args.get(), retval);
+                return ret;
+            }
+            else
+            {
+                return FUNCTION_NOT_DEFINED;
+            }
 		}
 		else
 		{
-			std::cout<<"Function is not found!";
+            return FUNCTION_NOT_FOUND;
         }
-        return;
+    }
+}
+
+
+/**
+ * Мораль сей басни такова: сначала собираем токены в списки-деревья (сделано),
+ * затем еще раз проходимся сверху по всему дереву команды, сравнивая типы.
+ * Если такого объекта или функции не найдено и функция принимает на вход WORD, 
+ * то берем само слово
+ * */
+rettype root::check_func_arg_types(func* fp)
+{
+    auto it=methods.find(fp->name);
+    gen_function f=nullptr;
+    std::vector<std::vector<arg_proto>> arg_prototypes;
+    bool is_found=false;
+    if(it!=methods.end())
+    {
+        f=it->second.p_func;
+        arg_prototypes=it->second.args;
+        is_found=true;
+    }
+    else
+    {
+		auto it_alias=method_aliases.find(fp->name);
+		if(it_alias!=method_aliases.end())
+		{
+            f=it_alias->second.p_func;
+            arg_prototypes=it->second.args;
+            is_found=true;
+		}
+    }
+    
+    if(is_found)
+    {
+        if(ret)
+        {
+            uint32_t num=0;
+            //fp->args.get();//given from user
+            //arg_prototypes;//arg proto in function
+            for(auto it=fp->args->begin(); it!=fp->args->end(); it++)
+            {
+                for(auto it_proto=arg_prototypes.begin(); 
+                         it_proto!=arg_prototypes.end(); it_proto++)
+                {
+                    if(it->type_val==NUM_T && it_proto[num]->type_val==NUM)
+                    {//приоритет не тот
+                        break;
+                    }
+                    else if(it->type_val==WORD_T && it_proto[num]->type_val==WORD)
+                    {
+                        break;
+                    }
+                    else if(it->type_val==FUNCTION)
+                    {
+                        rettype s=check_func_arg_types(it->val.f);
+                        if(s==it_proto[num]->type_val)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            estderr<<"False parameter type\n";
+                        }
+                    }
+                    else if(it->type_val==OBJECT)
+                    {
+                        
+                    }
+                    else if(it->type_val==VOID)
+                    {
+                        error
+                    }
+                }
+                num++;
+            }
+        }
+        else
+        {
+            return FUNCTION_NOT_DEFINED;
+        }
+    }
+    else
+    {
+        return FUNCTION_NOT_FOUND;
+    }
+}
+
+#include "colour.hpp"
+
+static void show_error(int err_code)
+{
+    static color::modifier red(color::FG_RED);
+    static color::modifier def(color::FG_DEFAULT);
+    
+    switch(err_code)
+    {
+        case FUNCTION_NOT_FOUND:
+            std::cerr<<red<<"[Function not found]: "<<def<<estderr.str()<<std::endl;
+        break;
+        case FUNCTION_NOT_DEFINED:
+            std::cerr<<red<<"[Function not defined]: "<<def<<estderr.str()<<std::endl;
+        break;
+        case FUNCTION_FALSE_ARGUMENTS:
+            std::cerr<<red<<"[Function gives false arguments]: "<<def<<estderr.str()<<std::endl;
+        break;
+        case OBJECT_NOT_FOUND:
+            std::cerr<<red<<"[Object not found]: "<<def<<estderr.str()<<std::endl;
+        break;
+        case DOWNLOAD_FAILED:
+            std::cerr<<red<<"[Download failed]: "<<def<<estderr.str()<<std::endl;
+        break;
+        case CALCULATION_FAILED:
+            std::cerr<<red<<"[Calculation failed]: "<<def<<estderr.str()<<std::endl;
+        break;
     }
 }
 
@@ -438,28 +523,29 @@ void root::exec_conveyor(std::vector<conveyor>* c)
 {
 	if(c)
     {
-        //size_t i=0;
+        int ret;
         for(auto it=c->begin(); it!=c->end(); it++)
         {
-            ret_object(&it->command);
-            /*if(i<c->size()-1)
+            ret=ret_object(&it->command);
+            //Errors first
+            show_error(ret);
+            estderr.str(std::string());
+            //Standard messages next
+            std::cout<<estdout.str();
+            estdout.str(std::string());
+            if(ret)
             {
-                switch (it->conv)
+                if(it->conv==AND_CONV)
+                    break;//An error was here and AND cannot continue
+                else if(it->conv==OR_CONV)
                 {
-                    case AND_CONV:
-                        std::cout<<" && ";
-                    break;
-                    case OR_CONV:
-                        std::cout<<" || ";
-                    break;
-                    case SEMICOLON_CONV:
-                        std::cout<<"; ";
-                    break;
-                    default:
+                    //All is good
+                }
+                else if(it->conv==SEMICOLON_CONV || it->conv==NO_CONV)
+                {
                     break;
                 }
-            }*/
-            //i++;
+            }
         }
     }
 }

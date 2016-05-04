@@ -3,7 +3,7 @@ CXX=clang++
 BUILDDIR=build
 
 all: mkbuild syntax.o lex.o prototypes.o root.o
-	$(CXX) -O2 -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o $(BUILDDIR)/prototypes.o $(BUILDDIR)/root.o -lfl -lreadline -o test
+	$(CXX) -O2 -march=native $(BUILDDIR)/lex.o $(BUILDDIR)/syntax.o $(BUILDDIR)/prototypes.o $(BUILDDIR)/root.o -lfl -lreadline -lboost_filesystem -lboost_system -o test
 
 mkbuild:
 	mkdir -p $(BUILDDIR)

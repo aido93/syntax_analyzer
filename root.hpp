@@ -7,14 +7,17 @@ class root : public object_proto
     private:
 		std::string CUR_DIR;//current directory
 		std::string PREV_DIR;//previous directory
-        void exec_function(func* f);
-        void ret_object(std::vector<object>* obj);
+        int exec_function(func* f, rettype* retval);//return error code
+        rettype check_func_arg_types(func* fp);
+        int ret_object(std::vector<object>* obj);//return error code
         virtual void init_methods() final;
         virtual void init_childrens() final;
-        int exit(std::vector<arg> *in);
-        int help(std::vector<arg> *in);
-        int pwd(std::vector<arg> *in);
-        int ls(std::vector<arg> *in);
+        gen_function exit, help, pwd, ls, cd;
+        /*int exit(std::vector<arg> *in, rettype* retval);
+        int help(std::vector<arg> *in, rettype* retval);
+        int pwd (std::vector<arg> *in, rettype* retval);
+        int ls  (std::vector<arg> *in, rettype* retval);
+        int cd  (std::vector<arg> *in, rettype* retval);*/
     public:
         root() : object_proto("root", nullptr)
         {

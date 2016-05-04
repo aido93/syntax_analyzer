@@ -51,22 +51,18 @@ extern std::string begin_line;
 %}
 
 %%
-[a-zA-Z-][a-zA-Z0-9-]*  yylval.str=strdup(yytext); return WORD;
-\'[a-zA-Z0-9/ -]*\'		yylval.str=strdup(yytext); return FILENAME;
-[0-9]+                  yylval.num=atoi(yytext);   return NUM;
-[0-9]+"."[0-9]*         yylval.num=atof(yytext);   return NUM;
-\.                      return DOT;
-[ \t]+                  return ' ';/* пропускаем пробелы и табы, возвращаем 1 пробел*/;
-[ \t]*\([ \t]*  		return '(';
-[ \t]*\)[ \t]*  		return ')';
-[ \t]*\,[ \t]*  		return ',';
-[ \t]*\;[ \t]*  		return ';';
-\n				  		return '\n';
-\+						return PLUS;
-\*						return MULT;
-\/						return DIV;
-\|						return CONVEY;
-&&						return AND;
-\|\|					return OR;
-\'.*\'					return ANYTHING;
+[a-zA-Z_\-/][a-zA-Z0-9_\-/]*    yylval.str=strdup(yytext); return WORD;
+[0-9]+                      yylval.num=atoi(yytext);   return NUM;
+[0-9]+"."[0-9]*             yylval.num=atof(yytext);   return NUM;
+\.                          return DOT;
+[ \t]+                      return ' ';/* пропускаем пробелы и табы, возвращаем 1 пробел*/;
+[ \t]*\([ \t]*  		    return '(';
+[ \t]*\)[ \t]*  		    return ')';
+[ \t]*\,[ \t]*  		    return ',';
+[ \t]*\;[ \t]*  		    return ';';
+\n				  		    return '\n';
+\|						    return CONVEY;
+&&						    return AND;
+\|\|					    return OR;
+\'.*\'					    return ANYTHING;
 %%

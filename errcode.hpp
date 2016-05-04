@@ -26,74 +26,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#ifndef ERRCODE_HPP
+#define ERRCODE_HPP
 
-#include <memory>
-#include <string>
-#include <vector>
-#include <stdint.h>
-#include <readline/readline.h>
+#define FUNCTION_NOT_FOUND       1
+#define FUNCTION_NOT_DEFINED     2
+#define FUNCTION_FALSE_ARGUMENTS 3
+#define UNDEFINED_TYPE           4
+#define OBJECT_NOT_FOUND         5
+#define DOWNLOAD_FAILED          6
+#define CALCULATION_FAILED       7
 
-enum type
-{
-    VOID,
-	NUM_T,
-	WORD_T,
-    OBJECT,
-    FUNCTION
-};
-
-struct func;
-struct object;
-class object_proto;
-
-struct arg//for func
-{
-    std::string var_name;
-    union
-    {
-        double      				num;
-        char*       				str;//have no dots or brackets. though may be func or object
-        std::vector<object>*      	obj;//have dots
-        func*       				f;//have brackets
-    } val;
-    type type_val;
-};
-
-struct func//from command-line
-{
-    std::string name;
-    std::unique_ptr<std::vector<arg>> args;
-};
-
-//typedef int (*func_type)(std::vector<arg>*);//always return error code or zero.
-									//always have arg list
-
-struct object
-{
-    union{
-            char* obj_name;
-            func*  f;
-         }obj;
-    bool is_object;
-};
-
-enum conv_type
-{
-	AND_CONV,//&&
-	OR_CONV,//||
-	SEMICOLON_CONV,//; - default
-	NO_CONV
-};
-
-struct conveyor
-{
-    std::vector<object>  command;
-    conv_type conv;
-};
-
-typedef int (*fe_type)(std::vector<func>*);//function executor
-typedef int (*oe_type)(std::vector<object>*);//object executor
-typedef void (*ce_type)(std::vector<conveyor>*);//conveyor executor
 #endif
