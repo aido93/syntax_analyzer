@@ -336,6 +336,36 @@ void root::init_childrens()
 	
 }
 
+bool root::check_hierarchy(const real_types & first, const real_types & second)
+{
+	if((first==real_types::ROOT   && second==real_types::BROKER ) ||
+       (first==real_types::ROOT   && second==real_types::WORD   ) ||
+       (first==real_types::ROOT   && second==real_types::NUM    ) ||
+       (first==real_types::ROOT   && second==real_types::BOOL   ) ||
+       (first==real_types::ROOT   && second==real_types::VOID   ) ||
+       
+       (first==real_types::BROKER && second==real_types::USER   ) ||
+       (first==real_types::BROKER && second==real_types::VOID   ) ||
+       (first==real_types::BROKER && second==real_types::WORD   ) ||
+       (first==real_types::BROKER && second==real_types::NUM    ) ||
+       
+       (first==real_types::USER   && second==real_types::ASSET  ) ||
+       (first==real_types::USER   && second==real_types::WORD   ) ||
+       (first==real_types::USER   && second==real_types::NUM    ) ||
+       (first==real_types::USER   && second==real_types::BOOL   ) ||
+       (first==real_types::USER   && second==real_types::VOID   ) ||
+       
+       (first==real_types::ASSET  && second==real_types::SMATRIX) ||
+       (first==real_types::ASSET  && second==real_types::MATRIX ) ||
+       (first==real_types::ASSET  && second==real_types::NUM    ) ||
+       (first==real_types::ASSET  && second==real_types::WORD   ) ||
+       (first==real_types::ASSET  && second==real_types::VOID   ) ||
+       (first==real_types::ASSET  && second==real_types::BOOL   )  )
+		return true;
+      else 
+		return false;
+}
+
 int root::process_object(std::vector<object>* obj)
 {
     if(obj)
@@ -532,14 +562,13 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
 		//It is safe, 'cause root must be one and creates when application begin to work
 		//and dies when application finish to work
 		object_proto* current_obj=this;
-		real_types r=real_types::VOID, old_r;
-        bool is_void=true;
+		real_types r=real_types::ROOT, old_r;
         std::vector<real_func*>* pt=new std::vector<real_func>(obj->size());
         real_func* f;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
-            if(is_void || r!=real_types::VOID)
-            {//для первого прохода
+            if(r!=real_types::VOID)
+            {
                 f=nullptr;
                 old_r=r;//иерархия root-брокер-юзер-акция
                 if(!(it->is_object))//function(args) apriori
@@ -553,23 +582,8 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     else
                     {
                         //enabled hierarchy
-                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
-                           (old_r==real_types::VOID && r==real_types::WORD) ||
-                           (old_r==real_types::VOID && r==real_types::NUM) ||
-                           (old_r==real_types::VOID && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM))
-                        pt->push_back(f);
+                        if(check_hierarchy(old_r, r))
+							pt->push_back(f);
                         else
                         {
                             estderr<<"Forbidden hierarchy type!"<<std::endl;
@@ -591,22 +605,7 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                         else
                         {
                             //enabled hierarchy
-                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
-                           (old_r==real_types::VOID && r==real_types::WORD) ||
-                           (old_r==real_types::VOID && r==real_types::NUM) ||
-                           (old_r==real_types::VOID && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM))
+                        if(check_hierarchy(old_r, r))
                             pt->push_back(f);
                         }
                     }
@@ -614,26 +613,13 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     {//argument of the function
                         r=current_obj->get_type();
                         //enabled hierarchy
-                        if(!((old_r==real_types::VOID && r==real_types::BROKER) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM)))
+                        if(!check_hierarchy(old_r, r))
                           {
                               estderr<<"Forbidden hierarchy type!"<<std::endl;
                               return FUNCTION_FALSE_ARGUMENTS;
                           }
                     }
                 }
-                is_void=false;
             }
             else
             {

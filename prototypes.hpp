@@ -37,6 +37,7 @@
 
 enum class real_types
 {
+	ROOT,
 	VOID,
     BROKER,
     USER,
