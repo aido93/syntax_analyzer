@@ -336,36 +336,6 @@ void root::init_childrens()
 	
 }
 
-bool root::check_hierarchy(const real_types & first, const real_types & second)
-{
-	if((first==real_types::ROOT   && second==real_types::BROKER ) ||
-       (first==real_types::ROOT   && second==real_types::WORD   ) ||
-       (first==real_types::ROOT   && second==real_types::NUM    ) ||
-       (first==real_types::ROOT   && second==real_types::BOOL   ) ||
-       (first==real_types::ROOT   && second==real_types::VOID   ) ||
-       
-       (first==real_types::BROKER && second==real_types::USER   ) ||
-       (first==real_types::BROKER && second==real_types::VOID   ) ||
-       (first==real_types::BROKER && second==real_types::WORD   ) ||
-       (first==real_types::BROKER && second==real_types::NUM    ) ||
-       
-       (first==real_types::USER   && second==real_types::ASSET  ) ||
-       (first==real_types::USER   && second==real_types::WORD   ) ||
-       (first==real_types::USER   && second==real_types::NUM    ) ||
-       (first==real_types::USER   && second==real_types::BOOL   ) ||
-       (first==real_types::USER   && second==real_types::VOID   ) ||
-       
-       (first==real_types::ASSET  && second==real_types::SMATRIX) ||
-       (first==real_types::ASSET  && second==real_types::MATRIX ) ||
-       (first==real_types::ASSET  && second==real_types::NUM    ) ||
-       (first==real_types::ASSET  && second==real_types::WORD   ) ||
-       (first==real_types::ASSET  && second==real_types::VOID   ) ||
-       (first==real_types::ASSET  && second==real_types::BOOL   )  )
-		return true;
-      else 
-		return false;
-}
-
 int root::process_object(std::vector<object>* obj)
 {
     if(obj)
@@ -463,95 +433,102 @@ int root::exec_function(real_func* f, rettype* retval)
 
 
 /**
- * Мораль сей басни такова: сначала собираем токены в списки-деревья (сделано),
- * затем еще раз проходимся сверху по всему дереву команды, сравнивая типы.
- * Если такого объекта или функции не найдено и функция принимает на вход WORD, 
- * то берем само слово
+ * функция проходит по параметрам и если параметр не подходит под шаблон, то удаляет шаблон из списка
  * */
+ static uint32_t func_level=1;
+ 
 int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
 {
-    auto it=methods.find(fp->name);
-    gen_function f=nullptr;
-    std::vector<std::vector<arg_proto>> arg_prototypes;
-    bool is_found=false;
-    if(it!=methods.end())
+    auto m=find_method(fp->name);
+    if(m)
     {
-        f=it->second.p_func;
-        arg_prototypes=it->second.args;
-        *ret=it->second.ret_type;
-        is_found=true;
-    }
-    else
-    {
-		auto it_alias=method_aliases.find(fp->name);
-		if(it_alias!=method_aliases.end())
-		{
-            f=it_alias->second.p_func;
-            arg_prototypes=it->second.args;
-            *ret=it->second.ret_type;
-            is_found=true;
-		}
-    }
-    
-    if(is_found)
-    {
-        if(f)
-        {
-            uint32_t num=0;
-            for(auto it=fp->args->begin(); it!=fp->args->end(); it++)
-            {//перебираем аргументы от пользователя
-                for(auto it_proto=arg_prototypes.begin(); 
-                         it_proto!=arg_prototypes.end(); it_proto++)
-                {//ищем его в дереве возможных прототипов
-                    if(it->type_val==NUM_T && it_proto[num]->type_val==NUM)
-                    {
-                        break;
-                    }
-                    else if(it->type_val==FUNCTION)
-                    {
-                        rettype s;
-                        int was_error=check_func_arg_types(it->val.f, &s);
-                        if(!was_error)
-						{
-							if(it_proto->size() >= num && s==it_proto[num]->type_val)
-							{//функция принимает на вход аргумент нужного типа
-								//возврат одной функции равен приему другой функции
-								break;
-							}
-							else
-							{
-								estderr<<"False parameter type "<<num<<"\n";
-							}
-						}
-						else
-						{
-							error
-						}
-                    }
-                    else if(it->type_val==OBJECT)
-                    {//точки...
-                        
-                    }
-                    else if(it->type_val==VOID)
-                    {
-                        error
-                    }
-                    else if(it->type_val==WORD_T && it_proto[num]->type_val==WORD)
-                    {//приоритет не тот
-                        break;
-                    }
-                }
-                num++;
-            }
-        }
-        else
+        real_func tmp_f;
+        if(!(tmp_f.f=m->p_func))
         {
             return FUNCTION_NOT_DEFINED;
         }
+        //сразу выставляем ретурн функции
+        *ret=m->ret_type;
+        //собираем все подходящие по длине шаблоны в одном месте
+        const size_t length=fp->args->size();
+        std::vector<std::vector<arg_proto>*> tmp_args;
+        for(auto it_proto=m->args.begin(); it_proto!=m->args.end(); it_proto++)
+        {
+            if(it_proto->size()==length)
+            {//возможно, шаблон функции подойдет
+                tmp_args.push_back(&(*it_proto));
+            }
+        }
+        //проходим по списку аргументов, которые переданы
+        uint32_t counter=0;
+        for(auto it=fp->args->begin(); it!=fp->args->end(); it++)
+        {
+            switch(it->type_val)
+            {
+                case VOID:
+                    estderr<<"Void parameter!"<<std::endl;
+                    return FUNCTION_FALSE_ARGUMENTS;
+                break;
+                case NUM_T:
+                    for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
+                    {
+                        if((*it1)[counter].type_val!=real_types::NUM)
+                        {
+                            tmp_args.erase(it1);
+                        }
+                    }
+                break;
+                case WORD_T:
+                {
+                    
+                }
+                break;
+                case OBJECT:
+                {
+                    
+                }
+                break;
+                case FUNCTION:
+                {
+                    real_types rt;
+                    bool func_found=false;
+                    real_func tmp_func;
+                    int ret=check_func_arg_types(it->obj.f, &rt, &tmp_func);
+                    if(ret)
+                        return ret;
+                    for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
+                    {
+                        if((*it1)[counter].type_val!=rt)
+                        {
+                            tmp_args.erase(it1);
+                        }
+                        else
+                        {
+                            if(!func_found)
+                                func_level++;
+                            func_found=true;
+                        }
+                    }
+                    //else не будет, так как может быть больше одной возможной функции
+                    //но в принципе за всеми аргументами стоит 1 функция
+                    if(!func_found)
+                    {
+                        estderr<<"False return type of function"<<std::endl;
+                        return FUNCTION_FALSE_ARGUMENTS;
+                    }
+                    else
+                    {
+                        tmp_f.args.push_back({func_level, (*it1)[counter]});
+                    }
+                }
+                break;
+            }
+            counter++;
+        }
     }
     else
     {
-        return FUNCTION_NOT_FOUND;
+        return FUNCTION_NOT FOUND;
     }
 }
 
@@ -562,13 +539,14 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
 		//It is safe, 'cause root must be one and creates when application begin to work
 		//and dies when application finish to work
 		object_proto* current_obj=this;
-		real_types r=real_types::ROOT, old_r;
+		real_types r=real_types::VOID, old_r;
+        bool is_void=true;
         std::vector<real_func*>* pt=new std::vector<real_func>(obj->size());
         real_func* f;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
-            if(r!=real_types::VOID)
-            {
+            if(is_void || r!=real_types::VOID)
+            {//для первого прохода
                 f=nullptr;
                 old_r=r;//иерархия root-брокер-юзер-акция
                 if(!(it->is_object))//function(args) apriori
@@ -582,8 +560,23 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     else
                     {
                         //enabled hierarchy
-                        if(check_hierarchy(old_r, r))
-							pt->push_back(f);
+                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
+                           (old_r==real_types::VOID && r==real_types::WORD) ||
+                           (old_r==real_types::VOID && r==real_types::NUM) ||
+                           (old_r==real_types::VOID && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM))
+                        pt->push_back(f);
                         else
                         {
                             estderr<<"Forbidden hierarchy type!"<<std::endl;
@@ -605,7 +598,22 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                         else
                         {
                             //enabled hierarchy
-                        if(check_hierarchy(old_r, r))
+                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
+                           (old_r==real_types::VOID && r==real_types::WORD) ||
+                           (old_r==real_types::VOID && r==real_types::NUM) ||
+                           (old_r==real_types::VOID && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM))
                             pt->push_back(f);
                         }
                     }
@@ -613,13 +621,26 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     {//argument of the function
                         r=current_obj->get_type();
                         //enabled hierarchy
-                        if(!check_hierarchy(old_r, r))
+                        if(!((old_r==real_types::VOID && r==real_types::BROKER) ||
+                          (old_r==real_types::BROKER && r==real_types::USER) ||
+                          (old_r==real_types::USER && r==real_types::ASSET) ||
+                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
+                          (old_r==real_types::ASSET && r==real_types::NUM) ||
+                          (old_r==real_types::ASSET && r==real_types::WORD) ||
+                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
+                          (old_r==real_types::USER && r==real_types::WORD) ||
+                          (old_r==real_types::USER && r==real_types::NUM) ||
+                          (old_r==real_types::USER && r==real_types::BOOL) ||
+                          (old_r==real_types::BROKER && r==real_types::WORD) ||
+                          (old_r==real_types::BROKER && r==real_types::NUM)))
                           {
                               estderr<<"Forbidden hierarchy type!"<<std::endl;
                               return FUNCTION_FALSE_ARGUMENTS;
                           }
                     }
                 }
+                is_void=false;
             }
             else
             {
