@@ -16,191 +16,6 @@ root::~root()
 	
 }
 
-int root::exit(std::vector<rettype> *in, rettype* retval)
-{
-	::exit(EXIT_SUCCESS);
-    return 0;
-}
-
-int root::help(std::vector<rettype> *in, rettype* retval)
-{
-	estdout<<"This is help"<<std::endl;
-    for(auto it=methods.begin(); it!=methods.end();it++)
-    {
-        estdout<<it->first<<"\t - \t"<<it->second.desc<<std::endl;
-    }
-    retval=nullptr;
-	return 0;
-}
-
-int root::pwd(std::vector<rettype> *in, rettype* retval)
-{
-    if(!in)
-    {
-        estdout<<CUR_DIR<<std::endl;
-        retval->type_val=WORD;
-        retval->val.str=CUR_DIR;
-        return 0;
-    }
-    else
-    {
-        estderr<<"Function takes no arguments!"<<std::endl;
-        return FUNCTION_FALSE_ARGUMENTS;
-    }	
-}
-
-int root::ls(std::vector<rettype>* in, rettype* retval)
-{
-	std::string args;
-	bool has_name=false;
-    int ret;
-	if(in)
-	{
-		for(auto it=in->begin(); it!=in->end(); it++)
-		{
-			switch(it->type_val)
-			{
-				case WORD_T:
-				{
-					args+=it->val.str;
-                    has_name=true;
-				}
-				break;
-				case NUM_T:
-				{
-					args+=it->val.num;
-					has_name=true;
-				}
-				break;
-				case VOID:
-                {
-					estderr<<"Incorrect type (void) for the argument "<<std::distance(in->begin(), it)<<"\n";
-					return FUNCTION_FALSE_ARGUMENTS;
-                }
-				case OBJECT:
-                {
-					ret=ret_object(it->val.obj);
-					if(ret)
-					{
-						return ret;
-					}
-					//estderr<<"Incorrect type (object) for the argument "<<arg->number<<"\n";
-					//return -1;
-                }
-				break;
-				case FUNCTION:
-                {
-					ret=exec_function(it->val.f);
-					if(ret)
-					{
-						return ret;
-					}
-                }
-				break;
-				default:
-					estderr<<"Undefined type for the argument "<<std::distance(in->begin(), it)<<"\n";
-					return UNDEFINED_TYPE;
-				break;
-			}
-		}
-		args+=" ";
-	}
-	if(!has_name)
-		system((std::string("ls ")/*+estdout.c_str()*/+CUR_DIR).c_str());
-	else
-		system((std::string("ls ")+args).c_str());
-	return 0;
-}
-
-int root::cd(std::vector<rettype>* in, rettype* retval)
-{
-    int ret;
-	if(in)
-	{
-		for(auto it=in->begin(); it!=in->end(); it++)
-		{
-			switch(it->type_val)
-			{
-				case WORD_T:
-				{
-                    boost::filesystem::path p(it->val.str);
-                    if (boost::filesystem::exists(p))    // does path p actually exist?
-                    {
-                        if (boost::filesystem::is_regular_file(p))
-                        {
-                            //error
-                        }
-                        else if (boost::filesystem::is_directory(p))      // is path p a directory?
-                        {
-                            PREV_DIR=CUR_DIR;
-                            CUR_DIR=boost::filesystem::absolute(p).c_str();
-                        }
-                        else
-                        {
-                            std::cout << p << " exists, but is not a regular file or directory\n";
-                        }
-                    }
-                    else
-                    {
-                        std::cout << p << " does not exist\n";
-                    }
-				}
-				break;
-				case NUM_T:
-				{
-                    boost::filesystem::path p(std::to_string(it->val.num));
-                    if (boost::filesystem::exists(p))    // does path p actually exist?
-                    {
-                        if (boost::filesystem::is_regular_file(p))
-                        {
-                            //error
-                        }
-                        else if (boost::filesystem::is_directory(p))      // is path p a directory?
-                        {
-                            PREV_DIR=CUR_DIR;
-                            CUR_DIR=boost::filesystem::absolute(p).c_str();
-                        }
-                        else
-                        {
-                            std::cout << p << " exists, but is not a regular file or directory\n";
-                        }
-                    }
-                    else
-                    {
-                        std::cout << p << " does not exist\n";
-                    }
-				}
-				break;
-				case VOID:
-					estderr<<"Incorrect type (void) for the argument "<<std::distance(in->begin(), it)<<"\n";
-					return FUNCTION_FALSE_ARGUMENTS;
-				case OBJECT:
-					ret_object(it->val.obj);
-					ret=ret_object(it->val.obj);
-					if(ret)
-					{
-						return ret;
-					}
-					//estderr<<"Incorrect type (object) for the argument "<<arg->number<<"\n";
-					//return -1;
-				break;
-				case FUNCTION:
-					ret=exec_function(it->val.f);
-					if(ret)
-					{
-						return ret;
-					}
-				break;
-				default:
-					estderr<<"Undefined type for the argument "<<std::distance(in->begin(), it)<<"\n";
-					return UNDEFINED_TYPE;
-				break;
-			}
-		}
-	}
-	return ret;
-}
-
 void root::init_methods()
 {
 	func_proto proto;
@@ -208,7 +23,7 @@ void root::init_methods()
 	//---------exit--------------
     proto.desc="exit program";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return this->exit(args, retval);};
+    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return this->exit(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);
@@ -217,7 +32,7 @@ void root::init_methods()
 	//---------help--------------
 	proto.desc="Show this message";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return help(args, retval);};
+    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return help(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);//no args
@@ -230,7 +45,7 @@ void root::init_methods()
     PREV_DIR=CUR_DIR;
 	proto.desc="Print current directory";
 	proto.ret_type=real_types::WORD;
-    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return pwd(args, retval);};
+    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return pwd(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);
@@ -238,7 +53,7 @@ void root::init_methods()
 	//---------ls--------------
 	proto.desc="ls [options] [file] - list directory contents\n\t\tFor more information use 'man ls'";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return ls(args, retval);};
+    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return ls(args, retval);};
 	args.clear();
     proto.args.clear();
     proto.args.push_back(args);
@@ -250,7 +65,7 @@ void root::init_methods()
 	//---------cd--------------
     proto.desc="cd [options] [file] - change directory";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, rettype* retval) -> int {return cd(args, retval);};
+    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return cd(args, retval);};
 	args.clear();
     proto.args.clear();
     proto.args.push_back(args);
@@ -354,7 +169,7 @@ int root::process_object(std::vector<object>* obj)
         if(ret)
             return ret;
         
-        rettype tmp;
+        value_type tmp;
         uint32_t func_counter;
         //только если проверка успешна - начинаем выполнять
         for(auto it=func_tree.rbegin(); it!=func_tree.rend(); it++)
@@ -362,7 +177,7 @@ int root::process_object(std::vector<object>* obj)
             func_counter++;
             tmp={0, real_types::VOID};
             //создаем список аргументов
-            std::vector<rettype> a;
+            std::vector<value_type> a;
             for(auto it1=it->args.begin();it1!=it->args.end(); it1++)
             {
                 a.push_back(it1->pointer);
@@ -393,7 +208,7 @@ int root::process_object(std::vector<object>* obj)
     return 0;
 }
 
-int root::exec_function(real_func* f, rettype* retval)
+int root::exec_function(real_func* f, value_type* retval)
 {
     auto it=methods.find(f->name);
     int ret;
