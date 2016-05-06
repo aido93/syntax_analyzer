@@ -435,14 +435,14 @@ int root::exec_function(real_func* f, rettype* retval)
 /**
  * функция проходит по параметрам и если параметр не подходит под шаблон, то удаляет шаблон из списка
  * */
- static uint32_t func_level=1;
  
-int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
+int root::check_func_arg_types(func* fp, real_func* f, real_types* ret, uint32_t func_level)
 {
     auto m=find_method(fp->name);
     if(m)
     {
         real_func tmp_f;
+        std::vector<real_func*> pointers_tree;
         if(!(tmp_f.f=m->p_func))
         {
             return FUNCTION_NOT_DEFINED;
@@ -470,22 +470,35 @@ int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
                     return FUNCTION_FALSE_ARGUMENTS;
                 break;
                 case NUM_T:
+                {
                     for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
                     {
                         if((*it1)[counter].type_val!=real_types::NUM)
                         {
-                            tmp_args.erase(it1);
+                            it1=tmp_args.erase(it1);//итератор больше не инвалидируется
                         }
                     }
+                    //добавить включение ссылки на этот объект
+                }
                 break;
                 case WORD_T:
                 {
-                    
+                    real_types rt;
+                    int ret=check_obj_childrens(it->val.str, &pointers_tree, &rt);
+                    if(ret)
+                    {
+                    	ret=check_func_arg_types(func* fp, real_func* f, real_types* ret, func_level+1);
+                    	if(ret)
+                    	    return ret;
+                    }
                 }
                 break;
                 case OBJECT:
                 {
-                    
+                    real_types rt;
+                    int ret=check_obj_childrens(it->val.obj, &pointers_tree, &rt);
+                    if(ret)
+                    	return ret;
                 }
                 break;
                 case FUNCTION:
@@ -493,18 +506,20 @@ int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
                     real_types rt;
                     bool func_found=false;
                     real_func tmp_func;
-                    int ret=check_func_arg_types(it->obj.f, &rt, &tmp_func);
+                    int ret=check_func_arg_types(it->obj.f, &rt, &tmp_func, func_level+1);
                     if(ret)
                         return ret;
+                    //этот кусок кода в общем бесполезен, но будет полезен, если 
+                    //одна и та же функция будет возвращать значения разных типов
                     for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
                     {
-                        if((*it1)[counter].type_val!=rt)
+                        if((*it1).at(counter).type_val!=rt)
                         {
-                            tmp_args.erase(it1);
+                            it1=tmp_args.erase(it1);//итератор больше не инвалидируется
                         }
                         else
                         {
-                            if(!func_found)
+                            if(!func_found)//хотя бы один шаблон подошел, значит левел поднялся
                                 func_level++;
                             func_found=true;
                         }
@@ -525,6 +540,7 @@ int root::check_func_arg_types(func* fp, real_types* ret, real_func* f)
             }
             counter++;
         }
+        *f=tmp_f;
     }
     else
     {
