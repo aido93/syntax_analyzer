@@ -8,12 +8,15 @@ class root : public object_proto
 		std::string CUR_DIR;//current directory
 		std::string PREV_DIR;//previous directory
         
-        int check_func_arg_types(func* fp, real_types* ret);
-        int check_obj_childrens(std::vector<object>* obj, std::vector<real_func> * pointers_tree, real_types* rt);
+        int check_func_arg_types(func* fp, real_func* f, real_types* ret);
+        int check_obj_childrens(std::vector<object>* obj, std::vector<real_func*> * pointers_tree, real_types* rt);
         
         int process_object(std::vector<object>* obj);//return error code
         virtual void init_methods() final;
         virtual void init_childrens() final;
+        template<class T>int delete_false_functions(T a, uint32_t arg_num, real_types type_val, 
+                                 std::vector<std::vector<arg_proto>*>* arg_prototypes, 
+                                 std::vector<arg_dependencies>* ad, uint32_t func_num);
         gen_function exit, help, pwd, ls, cd;
         /*int exit(std::vector<arg> *in, value_type* retval);
         int help(std::vector<arg> *in, value_type* retval);

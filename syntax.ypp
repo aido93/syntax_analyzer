@@ -82,19 +82,19 @@ void print_function(func* f)
         {
             switch(it->type_val)
             {
-                case NUM_T:
+                case type::NUM_T:
                     std::cout<<it->val.num;
                 break;
                 
-                case WORD_T:
+                case type::WORD_T:
                     std::cout<<it->val.str;
                 break;
                 
-                case OBJECT:
+                case type::OBJECT:
                     print_object(it->val.obj);
                 break;
                 
-                case FUNCTION:
+                case type::FUNCTION:
                     print_function(it->val.f);
                 break;
                 
@@ -429,7 +429,7 @@ bashlike_command : WORD
 						  std::vector<arg> *curr_args=new std::vector<arg>;
 						  arg c;
 						  c.val.str=$3;
-						  c.type_val=WORD_T;
+						  c.type_val=type::WORD_T;
 						  curr_args->push_back(c);
 						  $1->args=std::unique_ptr<std::vector<arg>>(curr_args);
 						  $$=$1;
@@ -438,7 +438,7 @@ bashlike_command : WORD
 					 {
 						  arg c;
 						  c.val.str=$3;
-						  c.type_val=WORD_T;
+						  c.type_val=type::WORD_T;
 						  $1->args->push_back(c);
 						  $$=$1;
 					 }
@@ -466,7 +466,7 @@ func_args :
             {  
                 arg c;
                 c.val.num=$1;
-                c.type_val=NUM_T;
+                c.type_val=type::NUM_T;
                 $3->push_back(c);
                 $$=$3;
             }
@@ -475,7 +475,7 @@ func_args :
             {  
                 arg c;
                 c.val.str=$1;
-                c.type_val=WORD_T;
+                c.type_val=type::WORD_T;
                 $3->push_back(c);
                 $$=$3;
             }                                           
@@ -484,7 +484,7 @@ func_args :
                 std::vector<arg> *curr_args=new std::vector<arg>;
                 arg c;
                 c.val.num=$1;
-                c.type_val=NUM_T;
+                c.type_val=type::NUM_T;
                 curr_args->push_back(c);
                 $$=curr_args;
             }
@@ -494,7 +494,7 @@ func_args :
                 std::vector<arg> *curr_args=new std::vector<arg>;
                 arg c;
                 c.val.str=$1;
-                c.type_val=WORD_T;
+                c.type_val=type::WORD_T;
                 curr_args->push_back(c);
                 $$=curr_args;
             }                     
@@ -502,7 +502,7 @@ func_args :
             {  
                 arg c;
                 c.val.f=$1;
-                c.type_val=FUNCTION;
+                c.type_val=type::FUNCTION;
                 $3->push_back(c);
                 $$=$3;
             }
@@ -512,7 +512,7 @@ func_args :
                 std::vector<arg> *curr_args=new std::vector<arg>;
                 arg c;
                 c.val.f=$1;
-                c.type_val=FUNCTION;
+                c.type_val=type::FUNCTION;
                 curr_args->push_back(c);
                 $$=curr_args;
             }
@@ -520,7 +520,7 @@ func_args :
             {
                 arg c;
                 c.val.obj=$1;
-                c.type_val=OBJECT;
+                c.type_val=type::OBJECT;
                 $3->push_back(c);
                 $$=$3;
 			}
@@ -529,7 +529,7 @@ func_args :
                 std::vector<arg> *curr_args=new std::vector<arg>;
                 arg c;
                 c.val.obj=$1;
-                c.type_val=OBJECT;
+                c.type_val=type::OBJECT;
                 curr_args->push_back(c);
                 $$=curr_args;
             }

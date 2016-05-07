@@ -34,6 +34,9 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include "broker.hpp"
+#include "user.hpp"
+#include "asset.hpp"
 
 enum class real_types
 {
@@ -55,7 +58,7 @@ struct arg_proto//for func_proto
     std::string var_name;
 };
 
-struct rettype
+struct value_type
 {
     real_types ret_type;
     union
@@ -69,12 +72,12 @@ struct rettype
     } val;
 };
 
-typedef int(*gen_function)(std::vector<rettype>*, rettype*);
+typedef int(*gen_function)(std::vector<value_type>*, value_type*);
 
 struct arg_dependencies
 {
     uint32_t num_of_func;//in vector. 0 - no func.
-    rettype pointer;
+    value_type pointer;
 };
 
 struct real_func
@@ -88,7 +91,8 @@ struct func_proto//for comparing with proto
     std::string desc;
     real_types ret_type;
     std::vector<std::vector<arg_proto>> args;
-    std::function<gen_function> p_func;
+    //gen_function
+    std::function<int(std::vector<value_type>*, value_type*)> p_func;
 };
 
 class object_proto //for hierarchy

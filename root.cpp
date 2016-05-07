@@ -1,13 +1,10 @@
 
 #include "root.hpp"
+#include <iostream>
+#include "errcode.hpp"
+#include <sstream>
 #include <stdlib.h>
 #include <unistd.h>
-#include <iostream>
-#include <sstream>
-#include <functional>
-#include <boost/filesystem.hpp>
-#include "errcode.hpp"
-
 std::stringstream estdout;
 std::stringstream estderr;
 
@@ -23,29 +20,29 @@ void root::init_methods()
 	//---------exit--------------
     proto.desc="exit program";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return this->exit(args, retval);};
+    proto.p_func=[this](std::vector<value_type>* args, value_type* retval) -> int {return this->exit(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);
 	methods["exit"]=proto;
-	method_aliases["q"]=proto;
+	method_aliases["q"]=&methods["exit"];
 	//---------help--------------
 	proto.desc="Show this message";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return help(args, retval);};
+    proto.p_func=[this](std::vector<value_type>* args, value_type* retval) -> int {return help(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);//no args
-    args.push_back({WORD, "name"});
+    args.push_back({real_types::WORD, "name"});
     proto.args.push_back(args);//1 arg
 	methods["help"]=proto;
-	method_aliases["h"]=proto;
+	method_aliases["h"]=&methods["help"];
 	//---------pwd--------------
     CUR_DIR=get_current_dir_name();
     PREV_DIR=CUR_DIR;
 	proto.desc="Print current directory";
 	proto.ret_type=real_types::WORD;
-    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return pwd(args, retval);};
+    proto.p_func=[this](std::vector<value_type>* args, value_type* retval) -> int {return pwd(args, retval);};
     args.clear();
     proto.args.clear();
     proto.args.push_back(args);
@@ -53,25 +50,25 @@ void root::init_methods()
 	//---------ls--------------
 	proto.desc="ls [options] [file] - list directory contents\n\t\tFor more information use 'man ls'";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return ls(args, retval);};
+    proto.p_func=[this](std::vector<value_type>* args, value_type* retval) -> int {return ls(args, retval);};
 	args.clear();
     proto.args.clear();
     proto.args.push_back(args);
-    args.push_back({WORD, "opts_or_dir1"});
+    args.push_back({real_types::WORD, "opts_or_dir1"});
     proto.args.push_back(args);
-    args.push_back({WORD, "opts_or_dir2"});
+    args.push_back({real_types::WORD, "opts_or_dir2"});
     proto.args.push_back(args);
     methods["ls"]=proto;
 	//---------cd--------------
     proto.desc="cd [options] [file] - change directory";
 	proto.ret_type=real_types::VOID;
-    proto.p_func=[this](std::vector<arg>* args, value_type* retval) -> int {return cd(args, retval);};
+    proto.p_func=[this](std::vector<value_type>* args, value_type* retval) -> int {return cd(args, retval);};
 	args.clear();
     proto.args.clear();
     proto.args.push_back(args);
-    args.push_back({WORD, "opts_or_dir1"});
+    args.push_back({real_types::WORD, "opts_or_dir1"});
     proto.args.push_back(args);
-    args.push_back({WORD, "opts_or_dir2"});
+    args.push_back({real_types::WORD, "opts_or_dir2"});
     proto.args.push_back(args);
     methods["cd"]=proto;
 	//---------cat--------------
@@ -151,13 +148,15 @@ void root::init_childrens()
 	
 }
 
+uint32_t func_number=0;
+
 int root::process_object(std::vector<object>* obj)
 {
     if(obj)
     {
         int ret;
         std::vector<real_func*> *func_tree;
-        
+        func_number=0;
         //первым делом при выполнении команды проверяем тип объекта и исполняемых функций
         //эта функция проверяет само наследование объектов, возвращаемые типы функций,
         //а также соответствие аргументов каждой функции нужному типу
@@ -165,20 +164,21 @@ int root::process_object(std::vector<object>* obj)
         //вместе с указателями на их аргументы. Если аргумент уже готов, то заполнение идет сразу.
         //Если нет, то выделяется память создающей функцией и скидывает туда указатель на выделенную память
         //Заполнение аргументов будет идти в обратном порядке по вектору
-        ret=check_obj_childrens(obj, func_tree);
+        real_types rt;
+        ret=check_obj_childrens(obj, func_tree, &rt);
         if(ret)
             return ret;
         
         value_type tmp;
         uint32_t func_counter;
         //только если проверка успешна - начинаем выполнять
-        for(auto it=func_tree.rbegin(); it!=func_tree.rend(); it++)
+        for(auto it=func_tree->rbegin(); it!=func_tree->rend(); it++)
         {
             func_counter++;
-            tmp={0, real_types::VOID};
+            tmp={real_types::VOID, 0};
             //создаем список аргументов
             std::vector<value_type> a;
-            for(auto it1=it->args.begin();it1!=it->args.end(); it1++)
+            for(auto it1=(*it)->args.begin();it1!=(*it)->args.end(); it1++)
             {
                 a.push_back(it1->pointer);
             }
@@ -192,9 +192,9 @@ int root::process_object(std::vector<object>* obj)
                 
             //что-то получили на выходе
             //проставляем зависимости других функций
-            for(auto it1=func_tree.rbegin(); it1!=it; it1--)
+            for(auto it1=func_tree->rbegin(); it1!=it; it1--)
             {
-                for(auto it2=it1->args.begin(); it2!=it1->args.end(); it2++)
+                for(auto it2=(*it1)->args.begin(); it2!=(*it1)->args.end(); it2++)
                 {
                     if(it2->num_of_func==func_counter)
                     {
@@ -208,63 +208,89 @@ int root::process_object(std::vector<object>* obj)
     return 0;
 }
 
-int root::exec_function(real_func* f, value_type* retval)
+template<class T>int root::delete_false_functions(T a, uint32_t arg_num, real_types type_val, 
+                                 std::vector<std::vector<arg_proto>*>* arg_prototypes, 
+                                 std::vector<arg_dependencies>* ad, uint32_t func_num)
 {
-    auto it=methods.find(f->name);
-    int ret;
-    if(it!=methods.end())
+    //цикл по возможным спискам аргументам
+    for(auto it1=arg_prototypes->begin(); it1!=arg_prototypes->end(); it1++)
     {
-        if(it->second.p_func)
+        if((**it1)[arg_num].type_val!=type_val)
         {
-            ret=it->second.p_func(f->args.get(),retval);
-            return ret;
-        }
-        else
-        {
-            return FUNCTION_NOT_DEFINED;
+            it1=arg_prototypes->erase(it1);//итератор больше не инвалидируется
         }
     }
+    if(arg_prototypes->size()==0)
+    {//нет подходящей функции - сразу выходим
+        estderr<<arg_num<<" parameter cannot be number"<<std::endl;
+        return FUNCTION_FALSE_ARGUMENTS;
+    }
     else
-    {
-		auto it_alias=method_aliases.find(f->name);
-		if(it_alias!=method_aliases.end())
-		{
-            if(it_alias->second.p_func)
-            {
-                ret=it_alias->second.p_func(f->args.get(), retval);
-                return ret;
-            }
-            else
-            {
-                return FUNCTION_NOT_DEFINED;
-            }
-		}
-		else
-		{
-            return FUNCTION_NOT_FOUND;
+    {//что-то нашлось. можем выставить сразу ссылку на этот объект
+        arg_dependencies tmp_ad;
+        tmp_ad.num_of_func=func_num;
+        tmp_ad.pointer.ret_type=type_val;
+        
+        switch(type_val)
+        {
+            case real_types::NUM :
+                tmp_ad.pointer.val.num=a;
+            break;
+            
+            case real_types::BROKER :
+                tmp_ad.pointer.val.b=a;
+            break;
+            
+            case real_types::USER :
+                tmp_ad.pointer.val.u=a;
+            break;
+            
+            case real_types::ASSET :
+                tmp_ad.pointer.val.a=a;
+            break;
+            
+            case real_types::BOOL :
+                tmp_ad.pointer.val.boolean=a;
+            break;
+            
+            case real_types::WORD :
+                tmp_ad.pointer.val.str=a;
+            break;
         }
+        ad->push_back(tmp_ad);
+        return 0;
     }
 }
 
-
 /**
  * функция проходит по параметрам и если параметр не подходит под шаблон, то удаляет шаблон из списка
+ * 
+ * func* fp - структура с именем функции и аргументами после парсинга
+ * real_func* f - структура с указателем на настоящую функцию и вектором реальных параметров
+ * real_types* ret - тип ретурна
  * */
- 
-int root::check_func_arg_types(func* fp, real_func* f, real_types* ret, uint32_t func_level)
+
+int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
 {
+    //ищем метод по имени. имя - уникальный идентификатор каждого метода
+    //список параметров должна обрабатывать сама функция
+    //пока ищется только в самом верхнем классе, откуда вызвана функция
     auto m=find_method(fp->name);
     if(m)
     {
-        real_func tmp_f;
+        func_number++;
+        //создаем временный объект, который в конце выполнения функции скопируем в f
+        real_func tmp_f({m->p_func.target(), std::vector<arg_dependencies>(m->args.size())});
         std::vector<real_func*> pointers_tree;
-        if(!(tmp_f.f=m->p_func))
+        
+        if(!tmp_f.f)
         {
             return FUNCTION_NOT_DEFINED;
         }
         //сразу выставляем ретурн функции
         *ret=m->ret_type;
-        //собираем все подходящие по длине шаблоны в одном месте
+        
+        //собираем все подходящие по длине шаблоны в одном месте tmp_args
         const size_t length=fp->args->size();
         std::vector<std::vector<arg_proto>*> tmp_args;
         for(auto it_proto=m->args.begin(); it_proto!=m->args.end(); it_proto++)
@@ -274,81 +300,122 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret, uint32_t
                 tmp_args.push_back(&(*it_proto));
             }
         }
+        if(tmp_args.size()==0)
+        {//нет подходящей функции - сразу выходим
+            estderr<<"No one function prototype can be used"<<std::endl;
+            return FUNCTION_FALSE_ARGUMENTS;
+        }
         //проходим по списку аргументов, которые переданы
         uint32_t counter=0;
         for(auto it=fp->args->begin(); it!=fp->args->end(); it++)
         {
             switch(it->type_val)
             {
-                case VOID:
+                case type::VOID:
+                {
                     estderr<<"Void parameter!"<<std::endl;
                     return FUNCTION_FALSE_ARGUMENTS;
-                break;
-                case NUM_T:
-                {
-                    for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
-                    {
-                        if((*it1)[counter].type_val!=real_types::NUM)
-                        {
-                            it1=tmp_args.erase(it1);//итератор больше не инвалидируется
-                        }
-                    }
-                    //добавить включение ссылки на этот объект
                 }
                 break;
-                case WORD_T:
+                
+                case type::NUM_T:
                 {
-                    real_types rt;
-                    int ret=check_obj_childrens(it->val.str, &pointers_tree, &rt);
+                    int ret=delete_false_functions(it->val.num, counter, real_types::NUM, 
+                                                    &tmp_args, &tmp_f.args,0);
                     if(ret)
                     {
-                    	ret=check_func_arg_types(func* fp, real_func* f, real_types* ret, func_level+1);
-                    	if(ret)
-                    	    return ret;
+                        return ret;
                     }
                 }
                 break;
-                case OBJECT:
+                
+                case type::WORD_T:
+                {
+                    if(it->val.str=="true")
+                    {//мб внести в лексику?
+                        int ret=delete_false_functions(true, counter, real_types::BOOL, 
+                                                    &tmp_args, &tmp_f.args,0);
+                        if(ret)
+                        {
+                            return ret;
+                        }
+                    }
+                    else if(it->val.str=="false")
+                    {
+                        int ret=delete_false_functions(false, counter, real_types::BOOL, 
+                                                    &tmp_args, &tmp_f.args,0);
+                        if(ret)
+                        {
+                            return ret;
+                        }
+                    }
+                    else
+                    {
+                        auto c=find_children(it->val.str);
+                        real_types rt;
+                        if(!c)
+                        {//no such object. maybe function without args?
+                            real_func f;
+                            func ff={it->val.str, nullptr};
+                            int ret=check_func_arg_types(&ff, &f, &rt);
+                            if(ret)
+                            {//no such function
+                                return ret;
+                            }
+                            else
+                            {
+                                ret=delete_false_functions(f, counter, rt, 
+                                                    &tmp_args, &tmp_f.args,func_number);
+                            }
+                        }
+                        else
+                        {
+                            int ret=check_obj_childrens(it->val.obj, &pointers_tree, &rt);
+                            if(ret)
+                            {
+                                return ret;
+                            }
+                                ret=delete_false_functions(c.get(), counter, rt, 
+                                                    &tmp_args, &tmp_f.args,0);
+                            if(ret)
+                            {
+                                return ret;
+                            }
+                        }
+                    }
+                }
+                break;
+                case type::OBJECT:
                 {
                     real_types rt;
                     int ret=check_obj_childrens(it->val.obj, &pointers_tree, &rt);
                     if(ret)
                     	return ret;
+                    ret=delete_false_functions(c.get(), counter, rt, 
+                                                    &tmp_args, &tmp_f.args,0);
+                    if(ret)
+                    {
+                        return ret;
+                    }
                 }
                 break;
-                case FUNCTION:
+                case type::FUNCTION:
                 {
                     real_types rt;
-                    bool func_found=false;
-                    real_func tmp_func;
-                    int ret=check_func_arg_types(it->obj.f, &rt, &tmp_func, func_level+1);
+                    real_func f;
+                    int ret=check_func_arg_types(it->val.f, &f, &rt);
                     if(ret)
+                    {//no such function
                         return ret;
-                    //этот кусок кода в общем бесполезен, но будет полезен, если 
-                    //одна и та же функция будет возвращать значения разных типов
-                    for(auto it1=tmp_args.begin(); it1!=tmp_args.end(); it1++)
-                    {
-                        if((*it1).at(counter).type_val!=rt)
-                        {
-                            it1=tmp_args.erase(it1);//итератор больше не инвалидируется
-                        }
-                        else
-                        {
-                            if(!func_found)//хотя бы один шаблон подошел, значит левел поднялся
-                                func_level++;
-                            func_found=true;
-                        }
-                    }
-                    //else не будет, так как может быть больше одной возможной функции
-                    //но в принципе за всеми аргументами стоит 1 функция
-                    if(!func_found)
-                    {
-                        estderr<<"False return type of function"<<std::endl;
-                        return FUNCTION_FALSE_ARGUMENTS;
                     }
                     else
                     {
-                        tmp_f.args.push_back({func_level, (*it1)[counter]});
+                        ret=delete_false_functions(f, counter, rt, 
+                                            &tmp_args, &tmp_f.args,func_number);
+                        if(ret)
+                        {//no such function
+                            return ret;
+                        }
                     }
                 }
                 break;
@@ -359,7 +426,7 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret, uint32_t
     }
     else
     {
-        return FUNCTION_NOT FOUND;
+        return FUNCTION_NOT_FOUND;
     }
 }
 
@@ -372,8 +439,9 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
 		object_proto* current_obj=this;
 		real_types r=real_types::VOID, old_r;
         bool is_void=true;
-        std::vector<real_func*>* pt=new std::vector<real_func>(obj->size());
+        std::vector<real_func*>* pt=new std::vector<real_func*>(obj->size());
         real_func* f;
+        int ret=0;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
             if(is_void || r!=real_types::VOID)
@@ -383,7 +451,7 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                 if(!(it->is_object))//function(args) apriori
                 {
                     //проверяем аргументы функции, заносим в r тип возврата
-                    ret=check_func_arg_types(it->obj.f, &r, f);
+                    ret=check_func_arg_types(it->obj.f, f, &r);
                     if(ret)
                     {//if there was any error - go out (or try to find all errors?)
                         return ret;

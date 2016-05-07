@@ -16,6 +16,10 @@
  * 
  */
 #include "root.hpp"
+#include <functional>
+#include <boost/filesystem.hpp>
+#include <stdlib.h>
+#include <unistd.h>
 
 int root::exit(std::vector<value_type> *in, value_type* retval)
 {

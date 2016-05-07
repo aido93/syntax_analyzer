@@ -38,8 +38,8 @@ std::shared_ptr<func_proto> object_proto::find_method(const std::string & name)
     }
     else
     {
-        it=method_aliases.find(name);
-        if(it!=methods.end())
+        auto it=method_aliases.find(name);
+        if(it!=method_aliases.end())
         {
             return std::shared_ptr<func_proto>(it->second);
         }

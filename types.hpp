@@ -35,7 +35,7 @@
 #include <stdint.h>
 #include <readline/readline.h>
 
-enum type
+enum class type
 {
     VOID,
 	NUM_T,
