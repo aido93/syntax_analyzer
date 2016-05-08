@@ -148,14 +148,12 @@ void root::init_childrens()
 	
 }
 
-uint32_t func_number=0;
-
 int root::process_object(std::vector<object>* obj)
 {
     if(obj)
     {
         int ret;
-        std::vector<real_func*> *func_tree;
+        std::vector<real_func*> *func_tree= nullptr;
         func_number=0;
         //первым делом при выполнении команды проверяем тип объекта и исполняемых функций
         //эта функция проверяет само наследование объектов, возвращаемые типы функций,
@@ -170,7 +168,7 @@ int root::process_object(std::vector<object>* obj)
             return ret;
         
         value_type tmp;
-        uint32_t func_counter;
+        uint32_t func_counter=0;
         //только если проверка успешна - начинаем выполнять
         for(auto it=func_tree->rbegin(); it!=func_tree->rend(); it++)
         {
@@ -208,7 +206,8 @@ int root::process_object(std::vector<object>* obj)
     return 0;
 }
 
-template<class T>int root::delete_false_functions(T a, uint32_t arg_num, real_types type_val, 
+
+int root::delete_false_functions(uint32_t arg_num, real_types type_val, 
                                  std::vector<std::vector<arg_proto>*>* arg_prototypes, 
                                  std::vector<arg_dependencies>* ad, uint32_t func_num)
 {
@@ -227,36 +226,11 @@ template<class T>int root::delete_false_functions(T a, uint32_t arg_num, real_ty
     }
     else
     {//что-то нашлось. можем выставить сразу ссылку на этот объект
+        //почти. объект не доделан
         arg_dependencies tmp_ad;
         tmp_ad.num_of_func=func_num;
         tmp_ad.pointer.ret_type=type_val;
-        
-        switch(type_val)
-        {
-            case real_types::NUM :
-                tmp_ad.pointer.val.num=a;
-            break;
-            
-            case real_types::BROKER :
-                tmp_ad.pointer.val.b=a;
-            break;
-            
-            case real_types::USER :
-                tmp_ad.pointer.val.u=a;
-            break;
-            
-            case real_types::ASSET :
-                tmp_ad.pointer.val.a=a;
-            break;
-            
-            case real_types::BOOL :
-                tmp_ad.pointer.val.boolean=a;
-            break;
-            
-            case real_types::WORD :
-                tmp_ad.pointer.val.str=a;
-            break;
-        }
+        //здесб надо вставить значение
         ad->push_back(tmp_ad);
         return 0;
     }
@@ -280,7 +254,7 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
     {
         func_number++;
         //создаем временный объект, который в конце выполнения функции скопируем в f
-        real_func tmp_f({m->p_func.target(), std::vector<arg_dependencies>(m->args.size())});
+        real_func tmp_f({m->p_func.target<int(std::vector<value_type>*, value_type*)>(), std::vector<arg_dependencies>(m->args.size())});
         std::vector<real_func*> pointers_tree;
         
         if(!tmp_f.f)
@@ -320,12 +294,13 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                 
                 case type::NUM_T:
                 {
-                    int ret=delete_false_functions(it->val.num, counter, real_types::NUM, 
+                    int ret=delete_false_functions(counter, real_types::NUM, 
                                                     &tmp_args, &tmp_f.args,0);
                     if(ret)
                     {
                         return ret;
                     }
+                    tmp_f.args.back().pointer.val.num=it->val.num;
                 }
                 break;
                 
@@ -333,21 +308,23 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                 {
                     if(it->val.str=="true")
                     {//мб внести в лексику?
-                        int ret=delete_false_functions(true, counter, real_types::BOOL, 
+                        int ret=delete_false_functions(counter, real_types::BOOL, 
                                                     &tmp_args, &tmp_f.args,0);
                         if(ret)
                         {
                             return ret;
                         }
+                        tmp_f.args.back().pointer.val.boolean=true;
                     }
                     else if(it->val.str=="false")
                     {
-                        int ret=delete_false_functions(false, counter, real_types::BOOL, 
+                        int ret=delete_false_functions(counter, real_types::BOOL, 
                                                     &tmp_args, &tmp_f.args,0);
                         if(ret)
                         {
                             return ret;
                         }
+                        tmp_f.args.back().pointer.val.boolean=false;
                     }
                     else
                     {
@@ -364,8 +341,13 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                             }
                             else
                             {
-                                ret=delete_false_functions(f, counter, rt, 
+                                ret=delete_false_functions(counter, rt, 
                                                     &tmp_args, &tmp_f.args,func_number);
+                                if(ret)
+                                {//no such function
+                                    return ret;
+                                }
+                                tmp_f.args.back().pointer.val.f=&f;
                             }
                         }
                         else
@@ -375,12 +357,34 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                             {
                                 return ret;
                             }
-                                ret=delete_false_functions(c.get(), counter, rt, 
+                                ret=delete_false_functions(counter, rt, 
                                                     &tmp_args, &tmp_f.args,0);
-                            if(ret)
-                            {
-                                return ret;
-                            }
+                                if(ret)
+                                {
+                                    return ret;
+                                }
+                                switch(rt)
+                                {
+                                    case real_types::BROKER:
+                                        tmp_f.args.back().pointer.val.b=&pointers_tree;
+                                    break;
+                                    
+                                    case real_types::USER:
+                                        tmp_f.args.back().pointer.val.u=&pointers_tree;
+                                    break;
+                                    
+                                    case real_types::ASSET:
+                                        tmp_f.args.back().pointer.val.a=&pointers_tree;
+                                    break;
+                                    /*
+                                    case real_types::MATRIX:
+                                        tmp_f.args.back()->val.b
+                                    break;
+                                    
+                                    case real_types::SMATRIX:
+                                        tmp_f.args.back()->val.b
+                                    break;*/
+                                }
                         }
                     }
                 }
@@ -391,11 +395,33 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                     int ret=check_obj_childrens(it->val.obj, &pointers_tree, &rt);
                     if(ret)
                     	return ret;
-                    ret=delete_false_functions(c.get(), counter, rt, 
+                    ret=delete_false_functions(counter, rt, 
                                                     &tmp_args, &tmp_f.args,0);
                     if(ret)
                     {
                         return ret;
+                    }
+                    switch(rt)
+                    {
+                        case real_types::BROKER:
+                            tmp_f.args.back().pointer.val.b=&pointers_tree;
+                        break;
+                        
+                        case real_types::USER:
+                            tmp_f.args.back().pointer.val.u=&pointers_tree;
+                        break;
+                        
+                        case real_types::ASSET:
+                            tmp_f.args.back()->pointer.val.a=&pointers_tree;
+                        break;
+                        /*
+                        case real_types::MATRIX:
+                            tmp_f.args.back()->val.b
+                        break;
+                                    
+                        case real_types::SMATRIX:
+                            tmp_f.args.back()->val.b
+                        break;*/
                     }
                 }
                 break;
@@ -410,12 +436,13 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
                     }
                     else
                     {
-                        ret=delete_false_functions(f, counter, rt, 
+                        ret=delete_false_functions(counter, rt, 
                                             &tmp_args, &tmp_f.args,func_number);
                         if(ret)
                         {//no such function
                             return ret;
                         }
+                        tmp_f.args.back().pointer.val.f=&f;
                     }
                 }
                 break;
@@ -430,6 +457,29 @@ int root::check_func_arg_types(func* fp, real_func* f, real_types* ret)
     }
 }
 
+bool root::check_hierarchy(real_types prev, real_types next)
+{
+    if( (prev==real_types::ROOT && next==real_types::BROKER) ||
+        (prev==real_types::ROOT && next==real_types::WORD) ||
+        (prev==real_types::ROOT && next==real_types::NUM) ||
+        (prev==real_types::ROOT && next==real_types::BOOL) ||
+        (prev==real_types::BROKER && next==real_types::USER) ||
+        (prev==real_types::USER && next==real_types::ASSET) ||
+        (prev==real_types::ASSET && next==real_types::SMATRIX) ||
+        (prev==real_types::ASSET && next==real_types::MATRIX) ||
+        (prev==real_types::ASSET && next==real_types::NUM) ||
+        (prev==real_types::ASSET && next==real_types::WORD) ||
+        (prev==real_types::ASSET && next==real_types::BOOL) ||
+        (prev==real_types::USER && next==real_types::WORD) ||
+        (prev==real_types::USER && next==real_types::NUM) ||
+        (prev==real_types::USER && next==real_types::BOOL) ||
+        (prev==real_types::BROKER && next==real_types::WORD) ||
+        (prev==real_types::BROKER && next==real_types::NUM))
+    return true;
+    
+    else return false;
+}
+
 int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>* pointers_tree, real_types* rt)
 {
 	if(obj)
@@ -437,15 +487,13 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
 		//It is safe, 'cause root must be one and creates when application begin to work
 		//and dies when application finish to work
 		object_proto* current_obj=this;
-		real_types r=real_types::VOID, old_r;
+		real_types r=real_types::ROOT, old_r;
         bool is_void=true;
         std::vector<real_func*>* pt=new std::vector<real_func*>(obj->size());
         real_func* f;
         int ret=0;
         for(auto it=obj->begin(); it!=obj->end(); it++)
         {
-            if(is_void || r!=real_types::VOID)
-            {//для первого прохода
                 f=nullptr;
                 old_r=r;//иерархия root-брокер-юзер-акция
                 if(!(it->is_object))//function(args) apriori
@@ -459,22 +507,7 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     else
                     {
                         //enabled hierarchy
-                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
-                           (old_r==real_types::VOID && r==real_types::WORD) ||
-                           (old_r==real_types::VOID && r==real_types::NUM) ||
-                           (old_r==real_types::VOID && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM))
+                        if(check_hierarchy(old_r,r))
                         pt->push_back(f);
                         else
                         {
@@ -497,22 +530,7 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                         else
                         {
                             //enabled hierarchy
-                        if((old_r==real_types::VOID && r==real_types::BROKER) ||
-                           (old_r==real_types::VOID && r==real_types::WORD) ||
-                           (old_r==real_types::VOID && r==real_types::NUM) ||
-                           (old_r==real_types::VOID && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM))
+                        if(check_hierarchy(old_r,r))
                             pt->push_back(f);
                         }
                     }
@@ -520,34 +538,15 @@ int root::check_obj_childrens(std::vector<object>* obj, std::vector<real_func*>*
                     {//argument of the function
                         r=current_obj->get_type();
                         //enabled hierarchy
-                        if(!((old_r==real_types::VOID && r==real_types::BROKER) ||
-                          (old_r==real_types::BROKER && r==real_types::USER) ||
-                          (old_r==real_types::USER && r==real_types::ASSET) ||
-                          (old_r==real_types::ASSET && r==real_types::SMATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::MATRIX) ||
-                          (old_r==real_types::ASSET && r==real_types::NUM) ||
-                          (old_r==real_types::ASSET && r==real_types::WORD) ||
-                          (old_r==real_types::ASSET && r==real_types::BOOL) ||
-                          (old_r==real_types::USER && r==real_types::WORD) ||
-                          (old_r==real_types::USER && r==real_types::NUM) ||
-                          (old_r==real_types::USER && r==real_types::BOOL) ||
-                          (old_r==real_types::BROKER && r==real_types::WORD) ||
-                          (old_r==real_types::BROKER && r==real_types::NUM)))
+                        if(!(check_hierarchy(old_r,r)))
                           {
                               estderr<<"Forbidden hierarchy type!"<<std::endl;
                               return FUNCTION_FALSE_ARGUMENTS;
                           }
                     }
                 }
-                is_void=false;
-            }
-            else
-            {
-                estderr<<"Some function returns void, but void cannot be the argument"<<std::endl;
-                return FUNCTION_FALSE_ARGUMENTS;
-            }
         }
-        pointer_tree=pt;
+        pointers_tree=pt;
         *rt=r;//?
         //мы вышли из цикла, а значит, что все слова нашлись где надо
     }

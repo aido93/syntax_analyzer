@@ -58,6 +58,8 @@ struct arg_proto//for func_proto
     std::string var_name;
 };
 
+struct real_func;
+
 struct value_type
 {
     real_types ret_type;
@@ -69,6 +71,7 @@ struct value_type
         bool            boolean;
         double          num;
         std::string*    str;//have no dots or brackets. though may be func or object
+        real_func*      f;
     } val;
 };
 
