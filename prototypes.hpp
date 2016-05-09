@@ -34,10 +34,13 @@
 #include <vector>
 #include <memory>
 #include <functional>
-#include "broker.hpp"
-#include "user.hpp"
-#include "asset.hpp"
 
+class object_proto;
+struct value_type;
+struct real_func;
+/**
+ * Список реальных типов данных, с которыми умеет работать программа
+ * */
 enum class real_types
 {
 	ROOT,
@@ -52,43 +55,22 @@ enum class real_types
     BOOL
 };
 
+/**
+ * Тип прототипа аргумента - тип аргумента, имя аргумента
+ * */
 struct arg_proto//for func_proto
 {
     real_types type_val;//name of the arg type
     std::string var_name;
 };
 
-struct real_func;
-
-struct value_type
-{
-    real_types ret_type;
-    union
-    {
-        broker*         b;
-        user*           u;
-        asset*          a;
-        bool            boolean;
-        double          num;
-        std::string*    str;//have no dots or brackets. though may be func or object
-        real_func*      f;
-    } val;
-};
-
-typedef int(*gen_function)(std::vector<value_type>*, value_type*);
-
-struct arg_dependencies
-{
-    uint32_t num_of_func;//in vector. 0 - no func.
-    value_type pointer;
-};
-
-struct real_func
-{
-    gen_function f;
-    std::vector<arg_dependencies> args;
-};
-
+/**
+ * Прототип функции:
+ * 1) desc - описание
+ * 2) ret_type - тип возвращаемого значения
+ * 3) args - возможные наборы аргументов
+ * 4) p_func - указатель на функцию
+ * */
 struct func_proto//for comparing with proto
 {
     std::string desc;
@@ -98,6 +80,9 @@ struct func_proto//for comparing with proto
     std::function<int(std::vector<value_type>*, value_type*)> p_func;
 };
 
+/**
+ * Главный класс - прототип всех классов.
+ * */
 class object_proto //for hierarchy
 {
     private:
@@ -132,5 +117,66 @@ class object_proto //for hierarchy
         {
             return parent;
         }
+};
+
+/*
+ * Прототипы окончены.
+ * Переходим к реальным данным
+ * */
+
+/**
+ * Реальный тип любой переменной в программе. 
+ * 
+ * arg_proto используется для указания в прототипах
+ * value_type - для передачи значений в конкретные функции.
+ * */
+struct value_type
+{
+    real_types ret_type;
+    union
+    {
+        object_proto*   obj;/*Broker, user, asset, matrix, smatrix*/
+        bool            boolean;
+        double          num;
+        std::string*    str;//have no dots or brackets.
+    } val;
+};
+
+/**
+ * Тип функции. первый аргумент - указатель на вектор реальных параметров
+ * Второй аргумент - указатель на возвращаемое значение.
+ * Важно!!! каждая функция сама выделяет память на return.
+ * Освобождается память после выполнения функции верхнего уровня
+ * */
+typedef int(*gen_function)(std::vector<value_type>*, value_type*);
+
+/**
+ * для составления нового древа инструкций
+ * */
+struct arg_depends
+{
+    value_type value;
+    real_func *return_from_here;//nullptr if not
+};
+
+
+/**
+ * Реальная функция, которая будет выполняться в программе. 
+ * f - указатель на нее
+ * args - вектор аргументов с порядком вычисления функций (tree)
+ * 
+ * Программа сама осуществляет связку по указателю
+ * */
+struct real_func
+{
+    gen_function f;
+    std::vector<arg_depends> args;
+    value_type *return_to_here;
+};
+
+struct error_desc
+{
+    int num;
+    std::string desc;
 };
 #endif

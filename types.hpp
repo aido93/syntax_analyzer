@@ -46,7 +46,6 @@ enum class type
 
 struct func;
 struct object;
-class object_proto;
 
 struct arg//for func
 {
