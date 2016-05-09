@@ -101,8 +101,9 @@ int root::delete_false_functions(uint32_t arg_num,
     {//что-то нашлось. можем выставить сразу ссылку на этот объект
         //почти. объект не доделан
         arg_depends tmp_ad;
-        tmp_ad.num_of_func=func_num;
-        tmp_ad.pointer.ret_type=rt;
+        tmp_ad.value=rt;
+        tmp_ad.return_from_here=;
+        
         //здесб надо вставить значение
         ad->push_back(tmp_ad);
         return 0;
@@ -157,31 +158,20 @@ int root::check_command_and_build_tree(std::vector<object>* command, real_func *
         {
             if(it->is_object)
             {//ищем по объектам
-                if(it->obj.name=="true")
-                {
-                    
+                //в случае успеха выдаем указатель на дочку
+                //или nullptr
+                where=check_object(it->obj.obj_name, where, err_sink);
+                if(!where)//object not found
+                {//ищем среди функций
+                    //возвращаем в случае успеха указатель real_func
+                    check_function({it->obj.obj_name, nullptr}, where, err_sink);
                 }
-                else if(it->obj.name=="false")
-                {
-                    
-                }
-                else
-                {
-                    //в случае успеха выдаем указатель на дочку
-                    //или nullptr
-                    where=check_object(it->obj.name, where, err_sink);
-                    if(!where)//object not found
-                    {//ищем среди функций
-                        //возвращаем в случае успеха указатель real_func
-                        check_function({it->obj.name, nullptr}, where, err_sink);
-                    }
-                    err_str.push_back(err_sink);
-                }
+                err_str.push_back(err_sink);
             }
             else
             {//ищем по методам
                 check_function(it->obj.f, where, err_sink);
-                err_str.push_back(tmp);
+                err_str.push_back(err_sink);
             }
         }
     }
@@ -192,9 +182,14 @@ int root::process_task(std::map<uint32_t, std::vector<real_func>> & prio_queue)
     int ret;
     for(auto it=prio_queue.begin(); it!=prio_queue.end(); it++)
     {//параллелить будем потом в этом месте через io_service
-        for(auto it_v=it->begin(); it_v!=it->end(); it_v++)
+        for(auto it_v=it->second.begin(); it_v!=it->second.end(); it_v++)
         {
-            ret=it_v->f(it_v->args, it_v->return_to_here);
+            std::vector<value_type> tmp_args(it_v->args.size());
+            for(auto i=it_v->args.begin(); i!=it_v->args.end(); i++)
+            {
+                tmp_args.push_back(i->value);
+            }
+            ret=it_v->f(&tmp_args, it_v->return_to_here);
             if(ret)
             {
                 estderr<<"ERROR!\n";
@@ -239,6 +234,7 @@ void root::exec_conveyor(std::vector<conveyor>* c)
     {
         int ret;
         std::vector<real_func> func_tree(c->size());
+        std::vector<conv_type> conveyors(c->size());
         real_func rf;
         bool has_errors=false;
         for(auto it=c->begin(); it!=c->end(); it++)
@@ -256,6 +252,7 @@ void root::exec_conveyor(std::vector<conveyor>* c)
             else
             {
                 func_tree.push_back(rf);
+                conveyors.push_back(it->conv);
             }
         }
         if(has_errors)
@@ -263,7 +260,8 @@ void root::exec_conveyor(std::vector<conveyor>* c)
             return;
         }
         //вышло. исполняем команды
-        for(auto it=func_tree->begin(); it!=func_tree->end(); it++)
+        int i=0;
+        for(auto it=func_tree.begin(); it!=func_tree.end(); it++)
         {
             std::map<uint32_t, std::vector<real_func>> prio_queue;
             create_task_queue(*it, prio_queue);
@@ -278,17 +276,18 @@ void root::exec_conveyor(std::vector<conveyor>* c)
             
             if(ret)
             {
-                if(it->conv==AND_CONV)
+                if(conveyors[i]==AND_CONV)
                     break;//An error was here and AND cannot continue
-                else if(it->conv==OR_CONV)
+                else if(conveyors[i]==OR_CONV)
                 {
                     //All is good
                 }
-                else if(it->conv==SEMICOLON_CONV || it->conv==NO_CONV)
+                else if(conveyors[i]==SEMICOLON_CONV || conveyors[i]==NO_CONV)
                 {
                     break;
                 }
             }
+            i++;
         }
     }
 }

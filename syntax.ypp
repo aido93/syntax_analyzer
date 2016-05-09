@@ -144,6 +144,7 @@ void print_conveyor(std::vector<conveyor>* c)
 %}
 
 %union {
+bool                    boolean;
 double  				num;
 char    				*str;
 struct func             *func_val;//func args tree
@@ -154,6 +155,7 @@ conveyor                *command_conveyor;
 }
 
 %token <num> NUM
+%token <boolean> BOOLEAN
 %token <str> WORD
 %type  <seq> func_args;
 %type  <func_val>   function bashlike_command;
@@ -498,7 +500,24 @@ func_args :
                 curr_args->push_back(c);
                 $$=curr_args;
             }                     
-          | function ',' func_args 
+          | BOOLEAN ',' func_args 
+            {  
+                arg c;
+                c.val.boolean=$1;
+                c.type_val=type::BOOL;
+                $3->push_back(c);
+                $$=$3;
+            }
+          | BOOLEAN ')'
+            {  
+                std::vector<arg> *curr_args=new std::vector<arg>;
+                arg c;
+                c.val.boolean=$1;
+                c.type_val=type::BOOL;
+                curr_args->push_back(c);
+                $$=curr_args;
+            }
+          |function ',' func_args 
             {  
                 arg c;
                 c.val.f=$1;

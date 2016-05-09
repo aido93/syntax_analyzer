@@ -38,6 +38,7 @@
 enum class type
 {
     VOID,
+    BOOL,
 	NUM_T,
 	WORD_T,
     OBJECT,
@@ -52,6 +53,7 @@ struct arg//for func
     std::string var_name;
     union
     {
+        bool                        boolean;
         double      				num;
         char*       				str;//have no dots or brackets. though may be func or object
         std::vector<object>*      	obj;//have dots
